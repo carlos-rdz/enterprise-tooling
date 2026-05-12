@@ -1,0 +1,28 @@
+{
+  "name": "enterprise-coordination",
+  "version": "0.1.0",
+  "description": "Upstream-coordination AI tooling for enterprise engineering. Bundles three workflows that attack the dysfunctions code completion cannot fix: meeting analysis, PM domain memory, and cross-team integration. Ships as one installable plugin so every engineer at the enterprise has the same baseline tooling.",
+  "author": {
+    "name": "Carlos Rodriguez"
+  },
+  "homepage": "https://github.com/carlos-rdz/REPO_NAME",
+  "keywords": ["coordination", "meeting", "pm-memory", "cross-team", "mcp"],
+  "components": {
+    "skills": [
+      ".claude/skills/meeting-killer",
+      ".claude/skills/pm-memory",
+      ".claude/skills/cross-team"
+    ],
+    "agents": [
+      ".claude/agents/pm-historian.md",
+      ".claude/agents/cross-team-integrator.md"
+    ],
+    "commands": [
+      ".claude/commands/meeting-killer.md",
+      ".claude/commands/pm-memory.md",
+      ".claude/commands/cross-team.md"
+    ],
+    "mcpServers": ".mcp.json",
+    "hooks": ".claude/settings.json"
+  }
+}

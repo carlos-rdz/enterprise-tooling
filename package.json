@@ -1,0 +1,21 @@
+{
+  "name": "enterprise-coordination",
+  "version": "0.1.0",
+  "description": "enterprise upstream-coordination AI tooling: meeting killer, PM domain memory, cross-team integrator. Built as a Claude Code plugin.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "mcp:pm-memory": "tsx mcp_servers/pm_memory/server.ts",
+    "mcp:team-registry": "tsx mcp_servers/team_registry/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

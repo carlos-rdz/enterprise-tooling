@@ -1,0 +1,16 @@
+{
+  "$comment": "Project-level Claude Code settings. The hook below demonstrates auto-triggering a skill when a meeting transcript lands on disk — exactly the kind of ambient workflow we want every the enterprise engineer to have without thinking about it.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const e=JSON.parse(s);const p=e.tool_input&&e.tool_input.file_path||'';if(/transcript.*\\\\.md$/i.test(p)){console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:'Transcript detected at '+p+' — invoke the meeting-killer skill or /meeting-killer slash command to extract action items.'}}));}}catch(_){}})\""
+          }
+        ]
+      }
+    ]
+  }
+}

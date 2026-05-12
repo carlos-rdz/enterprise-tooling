@@ -1,0 +1,22 @@
+# Personal interview prep — NOT for public consumption
+prep.md
+amex_context.md
+
+# Secrets
+.env
+.env.*
+*.key
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+package-lock.json
+
+# Editor
+.DS_Store
+.idea/
+.vscode/

@@ -22,15 +22,17 @@ Both call `claude-opus-4-7` with adaptive thinking. The productized form isn't s
 | **Skill** | `meeting-killer` | `pm-memory` | `cross-team` | `.claude/skills/*/SKILL.md` |
 | **Slash command** | `/meeting-killer` | `/pm-memory` | `/cross-team` | `.claude/commands/*.md` |
 | **Subagent** | — | `pm-historian` | `cross-team-integrator` | `.claude/agents/*.md` |
-| **MCP server** | — | `pm-memory` (TypeScript) | `team-registry` (TypeScript) | `mcp_servers/*/server.ts` |
+| **MCP server (local data)** | — | `pm-memory` | `team-registry` | `mcp_servers/*/server.ts` |
+| **MCP server (live API)** | `slack` + `jira` (for posting followups, creating tickets) | `slack` + `jira` (live ticket state + recent conversation) | `slack` + `jira` (live ticket state + recent conversation) | `mcp_servers/{slack,jira}/server.ts` |
 | **Hook** | `PostToolUse` on `Write` → transcript detection | — | — | `.claude/settings.json` |
 | **Plugin manifest** | bundles all three | bundles all three | bundles all three | `.claude-plugin/plugin.json` |
 | **Adaptive thinking** | ✓ | ✓ | ✓ | model param |
 | **Structured outputs (Pydantic)** | ✓ (raw form) | ✓ (raw form) | — | `*/agent.py` |
 | **Tool-use loop** | — | via subagent | ✓ (raw form, manual) | `03_cross_team/agent.py` |
 | **Prompt caching** | — | ✓ (raw form, on corpus) | — | `02_pm_memory/agent.py` |
+| **Real API integration** | Slack + Jira writes | Slack + Jira reads | Slack + Jira reads | env-gated, with synthetic fallback |
 
-Combined, these three workflows exercise most of the public Claude Code + Claude API surface: skills, slash commands, subagents, MCP servers (TypeScript SDK), hooks, plugin bundling, adaptive thinking, structured outputs, manual tool use, prompt caching, settings.json configuration.
+Combined, these workflows exercise most of the public Claude Code + Claude API surface: skills, slash commands, subagents, MCP servers (TypeScript SDK, both local-data and live-API patterns), hooks, plugin bundling, adaptive thinking, structured outputs, manual tool use, prompt caching, settings.json configuration, and live integration with external SaaS APIs (Slack, Jira Cloud).
 
 ---
 
@@ -56,13 +58,13 @@ Combined, these three workflows exercise most of the public Claude Code + Claude
                    │                      │ calls tools on
                    ▼                      ▼
               ┌────────────────────────────────────┐
-              │   MCP servers (TypeScript, stdio)  │ ←─ pm-memory
-              │   - typed Zod schemas              │    team-registry
+              │   MCP servers (TypeScript, stdio)  │ ←─ pm-memory, team-registry
+              │   - typed Zod schemas              │    (local-data: synthetic .md corpora)
               │   - shared across all agents       │
+              │                                    │ ←─ slack, jira
+              │                                    │    (live API: real Slack workspace + Jira Cloud
+              │                                    │     when env vars set; synthetic fallback otherwise)
               └────────────────────────────────────┘
-                               ▲
-                               │ (in production: Confluence, Jira, transcript stores,
-                               │  service registry. In this repo: local .md corpus.)
 
 
               ┌─────────────────────────────┐
@@ -80,15 +82,19 @@ Combined, these three workflows exercise most of the public Claude Code + Claude
 
 ## Design principles
 
-1. **MCP servers are the integration boundary.** Anything that touches an external system (corpus, Jira, Confluence, transcript store) lives behind an MCP server with a typed Zod schema. Skills and subagents call those tools; they never reach for the data directly. This means each new data source is added once and reused by every workflow.
+1. **MCP servers are the integration boundary.** Anything that touches an external system (local corpus, Jira Cloud, Slack workspace, future Confluence) lives behind an MCP server with a typed Zod schema. Skills and subagents call those tools; they never reach for the data directly. This means each new data source is added once and reused by every workflow — the same `slack` server serves the meeting-killer (writes), the pm-historian (reads), and the cross-team-integrator (reads).
 
-2. **Subagents own the heavy work.** Workflows that need a separate reasoning context (pm-historian doing deep history synthesis, cross-team-integrator pivoting across many tool calls) are subagents with their own model selection, system prompt, and tool allowlist. Skills stay light; subagents do the cognitive lifting.
+2. **Synthetic fallback is a first-class mode, not a stub.** Every server with a real-API integration (Slack, Jira) checks env vars on startup and falls back to a coherent synthetic dataset when credentials are missing. `npm install && npx tsx` always works for someone cloning fresh; the same code paths handle both modes. This is the pattern for shipping AI integrations that need to be demoable AND productionizable from one codebase.
 
-3. **Skills are the workflow definition.** A skill's `SKILL.md` is both human documentation and the prompt the model loads when it auto-triggers. The frontmatter `description` is the trigger contract; the body is the spec.
+3. **`DRY_RUN=true` for safe demos against real workspaces.** Even with real credentials, every write operation (Slack post/DM, Jira create/comment) checks `DRY_RUN` and logs to stderr instead of executing. Critical for demoing in a real workspace without spamming channels or littering Jira.
 
-4. **Hooks for ambient workflow.** The transcript-detection hook is the simplest possible demonstration: notice a file pattern, suggest the relevant skill. The same shape applies to PR creation, ticket transitions, incident pages.
+4. **Subagents own the heavy work.** Workflows that need a separate reasoning context (pm-historian doing deep history synthesis, cross-team-integrator pivoting across many tool calls) are subagents with their own model selection, system prompt, and tool allowlist. Skills stay light; subagents do the cognitive lifting.
 
-5. **Plugin manifest as the shipping unit.** A `plugin.json` bundles skills + agents + commands + MCP servers + hooks into one installable artifact. The deployment story for an enterprise rollout is "install one plugin," not "configure six things."
+5. **Skills are the workflow definition.** A skill's `SKILL.md` is both human documentation and the prompt the model loads when it auto-triggers. The frontmatter `description` is the trigger contract; the body is the spec.
+
+6. **Hooks for ambient workflow.** The transcript-detection hook is the simplest possible demonstration: notice a file pattern, suggest the relevant skill. The same shape applies to PR creation, ticket transitions, incident pages.
+
+7. **Plugin manifest as the shipping unit.** A `plugin.json` bundles skills + agents + commands + MCP servers + hooks into one installable artifact. The deployment story for an enterprise rollout is "install one plugin," not "configure six things."
 
 ---
 

@@ -21,10 +21,13 @@ Three workflows, each implemented **twice**: once as a Claude Code plugin (skill
 │   ├── skills/                 # 3 skills: meeting-killer, pm-memory, cross-team
 │   ├── agents/                 # 2 subagents: pm-historian, cross-team-integrator
 │   └── commands/               # 3 slash commands
-├── .mcp.json                   # registers the 2 MCP servers
+├── .mcp.json                   # registers all 4 MCP servers
+├── .env.example                # template for Slack + Jira credentials (optional)
 ├── mcp_servers/                # TypeScript MCP servers (@modelcontextprotocol/sdk)
-│   ├── pm_memory/
-│   └── team_registry/
+│   ├── pm_memory/              # local: PRDs/tickets/calls corpus
+│   ├── team_registry/          # local: team activity snapshots
+│   ├── slack/                  # live Slack Web API + synthetic fallback
+│   └── jira/                   # live Jira Cloud REST API + synthetic fallback
 │
 ├── 01_meeting_killer/          # raw form: Python + Anthropic SDK
 │   ├── agent.py
@@ -63,6 +66,21 @@ pip install anthropic pydantic
 
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+### Optional: real Slack + Jira
+
+Out of the box, the `slack` and `jira` MCP servers return synthetic FlexPay-shaped responses. To connect them to a real workspace:
+
+```bash
+cp .env.example .env
+# Fill in SLACK_BOT_TOKEN, JIRA_HOST, JIRA_EMAIL, JIRA_API_TOKEN
+# Leave DRY_RUN=true while testing — writes log to stderr instead of executing
+```
+
+- **Slack:** Create a Slack app, install to your workspace, copy the Bot User OAuth Token. Bot scopes needed: `channels:history`, `channels:read`, `groups:history`, `groups:read`, `im:write`, `chat:write`, `search:read`, `users:read`, `users:read.email`.
+- **Jira Cloud:** Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens. `JIRA_HOST` is your Atlassian subdomain (e.g. `yourco.atlassian.net`).
+
+The MCP servers detect credentials on startup. With `DRY_RUN=true`, read operations hit the real API but writes are logged-only — safe to demo against a live workspace. Unset `DRY_RUN` for full read+write.
 
 ## Run the productized form (Claude Code)
 

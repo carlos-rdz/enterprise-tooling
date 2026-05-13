@@ -5,6 +5,7 @@ amex_context.md
 # Secrets
 .env
 .env.*
+!.env.example
 *.key
 
 # Python

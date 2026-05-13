@@ -26,6 +26,13 @@ You read a meeting transcript and produce four artifacts. Tone: direct. No corpo
 
 The raw Anthropic SDK version of this workflow lives at [`01_meeting_killer/agent.py`](../../../01_meeting_killer/agent.py). It uses `client.messages.parse()` with a Pydantic schema. This skill is the Claude-Code-native form of the same logic — same prompts, no Python harness needed.
 
-## Production note
+## Acting on the output (Slack + Jira)
 
-In production this skill would also POST the action graph to Jira via an MCP server (`enterprise-jira`) and the followup drafts to Slack via `enterprise-slack`. For the demo it just renders to stdout.
+If the `slack` and `jira` MCP servers are configured, this skill can do more than render — it can execute. After producing the analysis, ask the user whether they want to:
+
+1. **Create Jira tickets for action items** — use `mcp__jira__jira_create_issue` per action item. Pick `project_key` from the action item's owning team (e.g. PLAN, MOBILE, AUTH); include the action as `summary`, the `risk_if_missed` and dependencies in the `description`. Default `issue_type` to `Task`. **Honor `DRY_RUN=true`** if set — both MCP servers respect it and will log instead of writing.
+2. **Send followup drafts as Slack DMs** — for each attendee with a followup draft, use `mcp__slack__slack_get_user` to resolve their email to a Slack user ID, then `mcp__slack__slack_send_dm` to deliver the draft.
+
+Always confirm with the user before any write. If `DRY_RUN=true`, the writes are logged to stderr (safe to demo).
+
+When the MCP servers are running in synthetic mode (no real credentials), the writes still "succeed" but operate on the fixture data — useful for demonstrating the flow without a real workspace.

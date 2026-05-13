@@ -3,12 +3,32 @@
     "pm-memory": {
       "command": "npx",
       "args": ["tsx", "mcp_servers/pm_memory/server.ts"],
-      "description": "Product-history corpus (PRDs, tickets, customer calls). Exposes list_documents / get_document / search_corpus."
+      "description": "Product-history corpus (PRDs, tickets, customer calls). list_documents / get_document / search_corpus."
     },
     "team-registry": {
       "command": "npx",
       "args": ["tsx", "mcp_servers/team_registry/server.ts"],
-      "description": "Cross-team activity feed (sprints + decisions). Exposes list_teams / get_team_activity / search_across_teams."
+      "description": "Cross-team activity feed (sprints + decisions). list_teams / get_team_activity / search_across_teams."
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/slack/server.ts"],
+      "description": "Slack workspace. Real API via SLACK_BOT_TOKEN; synthetic responses when unset. DRY_RUN=true turns writes into stderr logs.",
+      "env": {
+        "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+        "DRY_RUN": "${DRY_RUN:-}"
+      }
+    },
+    "jira": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/jira/server.ts"],
+      "description": "Jira Cloud. Real API via JIRA_HOST + JIRA_EMAIL + JIRA_API_TOKEN; synthetic responses when any is unset. DRY_RUN=true turns writes into stderr logs.",
+      "env": {
+        "JIRA_HOST": "${JIRA_HOST}",
+        "JIRA_EMAIL": "${JIRA_EMAIL}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
+        "DRY_RUN": "${DRY_RUN:-}"
+      }
     }
   }
 }

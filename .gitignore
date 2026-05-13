@@ -21,3 +21,7 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated runtime data (schemas + sample docs committed separately)
+audit_logs/*.jsonl
+mcp_gateway/users.json

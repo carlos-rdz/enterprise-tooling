@@ -97,6 +97,15 @@ Combined, these workflows exercise substantially the full public Claude Code + C
    CI         │   .github/workflows/ci.yml  │ ←─ typecheck + MCP smoke +
               │                             │    Python compile + hook tests
               └─────────────────────────────┘
+
+              ┌─────────────────────────────────────────────────┐
+   prod       │   mcp_gateway/gateway.ts                        │ ←─ HTTP front-door:
+   front-     │   - bearer-token auth (allowlist file → JWT)    │    auth + ACL + rate
+   door       │   - per-user rate limit + per-server ACL        │    limit + audit
+              │   - JSONL audit log per request (SOX schema)    │
+              │                                                 │
+              │   scripts/cost-dashboard.py → docs/*.html       │ ←─ adoption + cost
+              └─────────────────────────────────────────────────┘
 ```
 
 ---

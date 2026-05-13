@@ -4,8 +4,22 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
-### Added
-- Prod-grade hardening pass: structured logging across all MCP servers and Python agents (pino for TS, stdlib `logging` for Python).
+### Added (Phase 1.5 — fintech credibility)
+- **MCP gateway** (`mcp_gateway/gateway.ts`) — HTTP front-door with bearer-token auth (allowlist file, JWT-ready), per-user fixed-window rate limits, per-server ACLs, and per-request audit emission. `/healthz` for orchestrator probes.
+- **Audit log sink** — every gateway request emits a SOX/SR 11-7/GLBA-shaped JSONL event to `audit_logs/audit-YYYY-MM-DD.jsonl`. Schema and sample jq queries in `audit_logs/SCHEMA.md`.
+- **Cost + adoption dashboard** (`scripts/cost-dashboard.py`) — parses audit JSONL + eval report, renders a static HTML page with per-user/team/server/tool counts, latency p50/p95 per server, and denial-reason breakdown. Cron-able.
+- **Adding-an-MCP-server guide** (`docs/adding-an-mcp-server.md`) — 10-step contract for community contributions: synthetic fallback, McpError, retry, DRY_RUN, health_check, tests, eval coverage, architecture-matrix update.
+- **Auto-generated skills catalog** (`scripts/generate-skills-catalog.py` → `docs/skills-catalog.md`) — frontmatter + slash-command body parsing to resolve skill→subagent→MCP wiring. CI `--check` verifies freshness.
+- **OpenTelemetry instrumentation** on the cross-team agent's tool-use loop. Spans for session, step, model call, per-tool. `_shared/tracing.py` setup; defaults to ConsoleSpanExporter, OTLP-ready for production.
+- **Secret-scanner PreToolUse hook** (`.claude/hooks/scan-secrets.mjs`) — refuses Slack/Jira write payloads containing 14 known credential prefixes (Slack/GitHub/GitLab/Atlassian/Anthropic/OpenAI/Stripe/AWS/JWT/private-key) plus high-entropy hex + AWS-secret-shape heuristics.
+- **SQLite-backed shared memory for oncall** (`04_oncall_companion/shared_memory.py`) — replaces filesystem-local memory; actor-tracked, soft-delete, WAL-mode. Selectable via `ONCALL_SHARED_MEMORY=true`.
+- **OS positioning sweep** on README — repo now reads as "MCP collection for upstream engineering coordination, fork it for your org." Links to the public landscape audit.
+- **Research doc** (`research/fintech-ai-eng-landscape.md`) — public-sources audit of Stripe / Block / BlackRock / JPM / Klarna / Ramp AI engineering posture, with concrete recommendations against the repo.
+- Tests grow to **43 vitest + 46 pytest** all green. mypy strict still clean.
+- CI runs `scripts/generate-skills-catalog.py --check` so the catalog can't drift.
+
+### Phase 1 — prod-grade hardening (earlier in [Unreleased])
+- Structured logging across all MCP servers and Python agents (pino for TS, stdlib `logging` for Python).
 - Retry-with-backoff + rate-limit awareness for the `slack` and `jira` MCP server live-API paths.
 - In-memory LRU cache + pagination support on MCP read endpoints.
 - Proper `McpError` types replacing `isError: true` returns throughout.

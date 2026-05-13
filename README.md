@@ -2,14 +2,27 @@
 
 ![ci](https://github.com/carlos-rdz/enterprise-tooling/actions/workflows/ci.yml/badge.svg)
 ![evals](https://github.com/carlos-rdz/enterprise-tooling/actions/workflows/evals.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-blue)
 
-A Claude Code plugin that explores what AI tooling for engineering teams looks like when you stop building coding assistants and start building for the *upstream* dysfunctions — too many meetings, product teams without product memory, cross-team silos that turn every initiative into a re-negotiation, and on-call rotations where pattern recognition across prior incidents lives in nobody's head.
+> **An open MCP collection for upstream engineering coordination.** Fork it, point the MCP servers at your real systems, run the agents against your real data. Designed to be installed at one company in an afternoon.
 
-Four workflows, each implemented **twice**: once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), and once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage.
+The bet: every fintech has saturated coding assistants. The actual leverage is on the *upstream* dysfunctions — too many meetings, product teams without product memory, cross-team silos that turn every initiative into a re-negotiation, and on-call rotations where pattern recognition across prior incidents lives in nobody's head. This repo is what happens when you point the Claude Code + Claude API stack at those problems instead of the IDE.
 
-**Start here:** [`architecture.md`](architecture.md) — the tool-surface map and composition diagram.
+See [`research/fintech-ai-eng-landscape.md`](research/fintech-ai-eng-landscape.md) for the public landscape audit (Stripe, Block, BlackRock, JPM, Klarna, Ramp): **zero major fintech publicly does what this repo does on the coordination layer.** Coding-assistant adoption is already settled. The upstream layer is wide open.
 
-**Prod-grade:** structured logging (pino + stdlib `logging`), retry-with-backoff on upstream APIs, LRU caches on read endpoints, `McpError` types, `health_check` tools, strict mypy + 33 pytest + 33 vitest tests, LLM-judge eval harness gated in CI. Three operational modes per integration: synthetic / dry-run / live.
+**Four workflows**, each implemented **twice** — once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage. See [`docs/skills-catalog.md`](docs/skills-catalog.md) for the auto-generated catalog.
+
+**Production-shaped, not toy-shaped:**
+- **MCP gateway** with bearer-token auth, per-user rate limits, per-server ACLs, JSONL audit log with [SOX-compatible schema](audit_logs/SCHEMA.md).
+- **Three operational modes** per live integration: `synthetic` (no creds, clone-and-run works), `dry-run` (real reads, fake writes), `live`.
+- **Cost + adoption dashboard** auto-generated from audit logs.
+- **LLM-judge eval harness** with token-cost tracking, baseline locked in CI (8/8 pass, ~$0.25/run).
+- **Tests**: 33 Vitest + 33 pytest, strict mypy, every push gated.
+- **Hardening**: structured logging, retry-with-backoff, LRU caching, `McpError` types, `health_check` tools, `PreToolUse` hooks for write-operation gating.
+
+**Adding your own MCP server** is a single file + a 10-step checklist — see [`docs/adding-an-mcp-server.md`](docs/adding-an-mcp-server.md).
+
+**Start here:** [`architecture.md`](architecture.md) — tool-surface map and composition diagram.
 
 ---
 

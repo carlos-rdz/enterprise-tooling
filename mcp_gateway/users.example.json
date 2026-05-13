@@ -1,0 +1,21 @@
+{
+  "$comment": "Allowlist for bearer-token auth in the MCP gateway. Copy to users.json (gitignored) and fill in real tokens. Generate tokens with `openssl rand -hex 32`. In production replace this whole layer with a JWT validator that hits your IdP's JWKS endpoint.",
+  "users": [
+    {
+      "user_id": "carlos@example.com",
+      "team": "platform-ai",
+      "token": "REPLACE_WITH_OPENSSL_RAND_HEX_32",
+      "allowed_servers": ["pm-memory", "team-registry", "slack", "jira"],
+      "rate_limit_per_min": 60,
+      "monthly_token_budget_usd": 50.00
+    },
+    {
+      "user_id": "service-meeting-killer@example.com",
+      "team": "service-accounts",
+      "token": "REPLACE_WITH_OPENSSL_RAND_HEX_32",
+      "allowed_servers": ["jira", "slack"],
+      "rate_limit_per_min": 30,
+      "monthly_token_budget_usd": 200.00
+    }
+  ]
+}

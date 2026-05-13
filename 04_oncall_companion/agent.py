@@ -170,9 +170,17 @@ def main() -> int:
     page = read_page()
 
     client = anthropic.Anthropic()
-    memory = FilesystemMemoryTool()
+    # ONCALL_SHARED_MEMORY=true → SQLite-backed shared store (whole rotation
+    # reads/writes one DB). Default is filesystem-local for fast solo runs.
+    if os.environ.get("ONCALL_SHARED_MEMORY") == "true":
+        from shared_memory import SharedMemoryTool
+        memory: Any = SharedMemoryTool()
+        memory_backend = f"sqlite:{memory.db_path}"
+    else:
+        memory = FilesystemMemoryTool()
+        memory_backend = f"filesystem:{MEMORY_ROOT}"
 
-    log.info("oncall companion engaged", extra={"memory_root": str(MEMORY_ROOT), "page_chars": len(page)})
+    log.info("oncall companion engaged", extra={"memory_backend": memory_backend, "page_chars": len(page)})
     print("=" * 70)
     print("PAGE")
     print("=" * 70)

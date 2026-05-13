@@ -1,5 +1,5 @@
 {
-  "$comment": "Project-level Claude Code settings. Two hooks: (1) PostToolUse — when a transcript-shaped .md is written, suggest invoking the meeting-killer skill. (2) PreToolUse — gate write operations against the jira MCP server unless DRY_RUN=true.",
+  "$comment": "Project-level Claude Code settings. Three hooks: (1) PostToolUse — when a transcript-shaped .md is written, suggest invoking the meeting-killer skill. (2) PreToolUse — gate Jira writes unless DRY_RUN=true (ask permission). (3) PreToolUse — scan Slack/Jira write payloads for embedded secrets and deny on detection.",
   "hooks": {
     "PostToolUse": [
       {
@@ -13,6 +13,15 @@
       }
     ],
     "PreToolUse": [
+      {
+        "matcher": "mcp__slack__slack_post_message|mcp__slack__slack_send_dm|mcp__jira__jira_create_issue|mcp__jira__jira_add_comment",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/scan-secrets.mjs"
+          }
+        ]
+      },
       {
         "matcher": "mcp__jira__jira_create_issue|mcp__jira__jira_add_comment",
         "hooks": [

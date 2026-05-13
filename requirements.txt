@@ -3,6 +3,10 @@ anthropic==0.101.0
 pydantic==2.13.4
 pyyaml==6.0.3
 
+# Observability — minimal OpenTelemetry, no autoinstrumentation deps.
+opentelemetry-api==1.41.1
+opentelemetry-sdk==1.41.1
+
 # Dev deps for tests + type checking. Pinned to latest stable as of repo init.
 pytest==9.0.3
 pytest-mock==3.15.1

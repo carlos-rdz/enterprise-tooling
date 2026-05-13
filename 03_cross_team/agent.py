@@ -28,8 +28,10 @@ import anthropic
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from _shared.logging_setup import get_logger  # noqa: E402
+from _shared.tracing import setup_tracing, safe_attr  # noqa: E402
 
 log = get_logger("cross-team")
+tracer = setup_tracing("cross-team-agent")
 
 MODEL = "claude-opus-4-7"
 
@@ -214,44 +216,67 @@ def run_agent(question: str, teams: dict[str, dict[str, Any]]) -> None:
     print("=" * 70)
     print()
 
-    step = 0
-    while True:
-        step += 1
-        response = client.messages.create(
-            model=MODEL,
-            max_tokens=8000,
-            thinking={"type": "adaptive"},
-            system=SYSTEM,
-            tools=TOOLS,
-            messages=messages,
-        )
+    with tracer.start_as_current_span("agent.session") as session_span:
+        session_span.set_attribute("question", safe_attr(question))
+        session_span.set_attribute("model", MODEL)
+        session_span.set_attribute("teams_loaded", len(teams))
 
-        for block in response.content:
-            if block.type == "tool_use":
-                log.info("tool call", extra={"step": step, "tool": block.name, "input": block.input})
+        step = 0
+        while True:
+            step += 1
+            with tracer.start_as_current_span(f"agent.step_{step}") as step_span:
+                with tracer.start_as_current_span("claude.messages.create") as model_span:
+                    response = client.messages.create(
+                        model=MODEL,
+                        max_tokens=8000,
+                        thinking={"type": "adaptive"},
+                        system=SYSTEM,
+                        tools=TOOLS,
+                        messages=messages,
+                    )
+                    model_span.set_attribute("stop_reason", response.stop_reason or "")
+                    model_span.set_attribute("input_tokens", response.usage.input_tokens)
+                    model_span.set_attribute("output_tokens", response.usage.output_tokens)
 
-        if response.stop_reason == "end_turn":
-            for block in response.content:
-                if block.type == "text":
-                    print(block.text)
-            return
+                for block in response.content:
+                    if block.type == "tool_use":
+                        log.info("tool call", extra={"step": step, "tool": block.name, "input": block.input})
 
-        if response.stop_reason != "tool_use":
-            log.warning("unexpected stop_reason", extra={"stop_reason": response.stop_reason})
-            return
+                if response.stop_reason == "end_turn":
+                    for block in response.content:
+                        if block.type == "text":
+                            print(block.text)
+                    step_span.set_attribute("terminal", True)
+                    return
 
-        messages.append({"role": "assistant", "content": response.content})
+                if response.stop_reason != "tool_use":
+                    log.warning("unexpected stop_reason", extra={"stop_reason": response.stop_reason})
+                    step_span.set_attribute("terminal", True)
+                    step_span.set_attribute("unexpected_stop", True)
+                    return
 
-        tool_results: list[Any] = []
-        for block in response.content:
-            if block.type == "tool_use":
-                result = run_tool(block.name, dict(block.input) if isinstance(block.input, dict) else {}, teams)
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result,
-                })
-        messages.append({"role": "user", "content": tool_results})
+                messages.append({"role": "assistant", "content": response.content})
+
+                tool_results: list[Any] = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        with tracer.start_as_current_span(f"tool.{block.name}") as tool_span:
+                            tool_span.set_attribute("tool_name", block.name)
+                            tool_span.set_attribute("tool_use_id", block.id)
+                            result = run_tool(
+                                block.name,
+                                dict(block.input) if isinstance(block.input, dict) else {},
+                                teams,
+                            )
+                            tool_span.set_attribute("result_bytes", len(result))
+                            tool_results.append(
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": block.id,
+                                    "content": result,
+                                }
+                            )
+                messages.append({"role": "user", "content": tool_results})
 
 
 def main() -> int:

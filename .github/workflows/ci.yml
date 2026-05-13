@@ -69,6 +69,8 @@ jobs:
               print(f'{p.name}: {len(data[\"cases\"])} cases OK')
           sys.exit(0 if ok else 1)
           "
+      - name: skills-catalog up to date
+        run: python scripts/generate-skills-catalog.py --check
 
   hooks:
     name: PreToolUse / PostToolUse hook smoke tests

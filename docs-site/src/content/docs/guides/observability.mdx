@@ -1,0 +1,105 @@
+---
+title: Observability
+description: OpenTelemetry tracer setup. ConsoleSpanExporter for local dev, OTLP-ready for production. Spans for session, step, model call, per-tool.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+**Source:** `_shared/tracing.py`
+
+The Python agents emit OpenTelemetry spans for their tool-use loops. By
+default uses the `ConsoleSpanExporter` — every span is printed to stderr.
+In production you'd swap this for an OTLP exporter pointed at your
+collector (Honeycomb, Tempo, Datadog APM, etc.).
+
+## Setup
+
+```py
+from _shared.tracing import setup_tracing
+
+tracer = setup_tracing("cross-team-integrator")
+
+with tracer.start_as_current_span("session") as session_span:
+    session_span.set_attribute("user.question", question)
+
+    while not_done:
+        with tracer.start_as_current_span("step") as step_span:
+            with tracer.start_as_current_span("model.create") as model_span:
+                resp = client.messages.create(...)
+                model_span.set_attribute("usage.input_tokens", resp.usage.input_tokens)
+                model_span.set_attribute("usage.output_tokens", resp.usage.output_tokens)
+
+            for tool_call in tool_uses_in(resp):
+                with tracer.start_as_current_span(f"tool.{tool_call.name}") as tool_span:
+                    tool_span.set_attribute("tool.name", tool_call.name)
+                    result = execute(tool_call)
+                    tool_span.set_attribute("tool.latency_ms", result.latency_ms)
+```
+
+The span tree gives you end-to-end timing per session, per loop step,
+per model call, and per tool — the four axes you actually need when
+debugging an agent that's behaving oddly.
+
+## Production switch — OTLP
+
+To point at a real collector, set:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.example.com:4317
+```
+
+and edit `_shared/tracing.py` to swap `ConsoleSpanExporter` for
+`OTLPSpanExporter`:
+
+```py
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+# ...
+processor = BatchSpanProcessor(OTLPSpanExporter())
+```
+
+The agent code doesn't change — it just calls `get_tracer()` and uses
+`start_as_current_span`. The exporter swap is the only thing that moves.
+
+## Disabling
+
+Set `OTEL_DISABLED=true` to skip tracer initialization entirely. Useful
+in CI to keep test output clean.
+
+## What's instrumented today
+
+| Agent | Spans emitted |
+|---|---|
+| `01_meeting_killer` | Not yet — no tool loop, just `messages.parse()` |
+| `02_pm_memory` | Not yet — corpus is loaded into the prompt with caching |
+| `03_cross_team` | Full instrumentation: session, step, model.create, tool.\<name\> per tool call |
+| `04_oncall_companion` | Not yet — uses the SDK `tool_runner()` which is harder to instrument cleanly without an OTel-aware fork |
+
+The cross-team agent is the proof-of-concept. The other three follow the
+same pattern when added — the `_shared/tracing.py` setup is already
+parameterizable by service name.
+
+<Aside type="tip">
+For local dev with ConsoleSpanExporter, the span output is pretty
+noisy alongside the agent's normal stderr logging. Pipe through `jq` and
+filter on `span_name` if you need to focus:
+
+```bash
+python 03_cross_team/agent.py "..." 2>&1 | grep '^{' | jq 'select(.span_name | startswith("tool."))'
+```
+</Aside>
+
+## What's NOT instrumented
+
+- Token usage isn't currently shipped as a metric — only logged on the
+  span and in pino. A production deployment would add a
+  `tokens_used_total` Counter with `(model, agent, tool)` labels.
+- The four MCP servers (TypeScript) aren't OTel-instrumented. The
+  shared logger writes structured JSON to stderr; that ends up in the
+  audit log via the gateway. Adding OTel to the TS side is a future
+  direction — the standard approach is
+  `@opentelemetry/instrumentation-node`, with manual spans inside each
+  tool handler.
+- The gateway itself isn't OTel-instrumented either. Its audit log
+  captures per-request latency + status; that's typically enough for the
+  request-level view. Trace-correlation requires propagating a trace ID
+  through the JSON-RPC frame, which the gateway doesn't currently do.

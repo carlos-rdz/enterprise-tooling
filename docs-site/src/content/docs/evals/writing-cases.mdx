@@ -1,0 +1,139 @@
+---
+title: Writing eval cases
+description: How to add a golden YAML rubric. Behavior, not phrasing. must_have and must_not_have, calibrated against the judge's actual capabilities.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Each skill has one YAML file at `evals/golden/<skill>.yaml` containing
+a `cases:` array. The runner picks up new YAML files automatically.
+
+## The shape
+
+```yaml
+cases:
+  - id: q3_expansion_blunt_warning
+    description: >
+      The asker is about to commit to Q3 Standard expansion. The corpus
+      explicitly recorded a kill doc 12 months earlier saying don't do
+      this without three preconditions. The agent must surface the
+      blunt warning and cite the kill doc.
+    question: "We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?"
+    must_have:
+      - "Identifies that this expansion was already killed in 2025-Q3 for substantively the same reasons."
+      - "Calls out the three preconditions from the kill doc (server-side eligibility migration, UDAAP review, current risk modeling)."
+      - "Emits a blunt warning — not just historical context but explicit do-not-repeat language."
+      - "Cites prds/2025_plan_it_gold_explore.md (or equivalent killed-exploration doc)."
+      - "Names current owner: Priya Shankar (or equivalent product owner)."
+    must_not_have:
+      - "Bland summary of what FlexPay is without the historical landmine warning."
+      - "Treats this as a greenfield question with no prior precedent."
+```
+
+For workflows that take a file rather than a question (e.g. the
+meeting-killer transcript), use `input_transcript_path` instead of
+`question`:
+
+```yaml
+  - id: flexpay_q3_sync
+    description: >
+      Hostile case design: a VP joins late, a key tech debt surfaces 47
+      min in, a compliance reviewer flags a 6-8 wk blocker the PM hadn't
+      started.
+    input_transcript_path: 01_meeting_killer/transcript.md
+    must_have:
+      - "Sync score is 7 or below."
+      - "Wendell Ngata is classified as borderline or could_have_been_briefed."
+      ...
+```
+
+## How to write good `must_have` items
+
+<Steps>
+
+1. **Behavior, not phrasing.** Write the *property* you want, not the
+   exact words you want the model to use.
+
+   - **Bad:** `"Says 'FlexPay Standard was killed in Q3 2025'."`
+   - **Good:** `"Identifies that this expansion was already killed in 2025-Q3 for substantively the same reasons."`
+
+   The judge can tell the difference between "answers the question with
+   the right substance" and "produces the literal string." Write for
+   substance.
+
+2. **Be testably specific.** A property the judge can't reliably evaluate
+   is worse than no property at all — it adds noise.
+
+   - **Bad:** `"The answer is comprehensive."`
+   - **Good:** `"Names at least 3 of: 2.4x loss rate on thin-file segment, 14 FTE servicing without budget, client-side eligibility gate, UDAAP not started."`
+
+3. **One property per item.** If you find yourself writing "and",
+   split. The judge grades each item independently — combining them
+   makes the partial-credit case ambiguous.
+
+4. **Calibrate to the model's actual behavior.** Run the agent on the
+   case manually first. If the model can plausibly answer correctly
+   without satisfying a `must_have`, that property is too strict.
+
+</Steps>
+
+## How to write good `must_not_have` items
+
+Mirror image — anti-properties that signal a *failure mode* you've seen
+the model fall into.
+
+- **For pm-memory:** *"Bland summary of what FlexPay is without the
+  historical landmine warning."* — caught a regression where the agent
+  was answering the surface question without surfacing the prior kill.
+- **For meeting-killer:** *"Vague 'good discussion, action items
+  captured' summary with no challenge to the meeting's existence."* —
+  caught a regression where the model went corporate-friendly and
+  stopped scoring sync-vs-async honestly.
+- **For cross-team:** *"Lists teams instead of named people as the
+  action owners."* — caught a regression where the model lost the
+  specificity that makes the report useful.
+
+Each `must_not_have` is a *named past failure*. Don't write speculative
+ones — let real regressions teach you which failure modes are worth
+guarding against.
+
+## What the judge can and can't reliably detect
+
+| Reliable | Unreliable |
+|---|---|
+| Whether a specific entity / ID is mentioned | Counting (the judge can't reliably say "exactly N items appear") |
+| Whether a citation appears | Comparing the agent's number against a precise threshold |
+| Whether the tone is hedged vs blunt | Subjective quality ("is this answer good?") |
+| Whether a structural element exists (e.g. "named owner") | Multi-step factual chains where order matters |
+| Whether a specific failure mode is *absent* | Predicting what the agent *should* have done that it didn't |
+
+When you find a property the judge keeps flip-flopping on, that's a
+signal to rephrase or split it.
+
+## Running just your new case
+
+```bash
+python evals/run.py pm-memory          # run all cases in pm-memory.yaml
+python evals/run.py pm-memory q3_expansion_blunt_warning  # one case by id
+```
+
+The case's full agent output lands in `evals/runs/<ts>/<skill>/<case_id>.md`
+so you can inspect why the judge made the call it made.
+
+## The CI eval-gate
+
+`.github/workflows/evals.yml` runs the full suite on every PR and on a
+nightly schedule. The job fails if the pass rate drops below the
+committed baseline (currently 8/8 = 100%).
+
+If you genuinely intend a behavior change and the baseline needs to move,
+update the baseline in the same PR — reviewers should see the eval-rate
+change in the diff next to the prompt or model change that caused it.
+
+<Aside type="caution">
+**Don't** ratchet the baseline down to make a flaky PR pass. The whole
+point of the eval-gate is that the model's behavior is stable. If a case
+keeps flipping pass/fail across runs, the case is bad (its `must_have` is
+underspecified) or the prompt is unstable — fix the underlying thing, not
+the threshold.
+</Aside>

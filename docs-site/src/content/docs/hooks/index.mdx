@@ -1,0 +1,106 @@
+---
+title: Hooks
+description: Two PreToolUse hooks for safety, one PostToolUse hook for ambient workflow. Defense in depth at the hook layer, not just the server layer.
+---
+
+import { CardGrid, Card, LinkCard, Aside } from "@astrojs/starlight/components";
+
+Hooks fire before (or after) every tool call inside a Claude Code session.
+They're how you put safety checks and ambient workflow detection at the
+Claude Code layer, where they can deny / ask / nudge the model before
+the tool call leaves the agent's context.
+
+This repo ships three hooks:
+
+<CardGrid>
+  <LinkCard
+    title="Jira write gate"
+    description="PreToolUse hook. Gates jira_create_issue and jira_add_comment with an explicit-confirmation UI prompt when DRY_RUN is unset."
+    href="/enterprise-tooling/hooks/jira-write-gate/"
+  />
+  <LinkCard
+    title="Secret scanner"
+    description="PreToolUse hook. Refuses Slack/Jira write payloads containing 14 credential prefixes + AWS-secret shape + high-entropy hex."
+    href="/enterprise-tooling/hooks/secret-scanner/"
+  />
+  <Card title="Transcript detection" icon="document">
+    PostToolUse hook on `Write`. When a transcript-shaped Markdown file
+    is written, nudges Claude to invoke the `meeting-killer` skill.
+    Configured in `.claude/settings.json` — the simplest possible
+    demonstration of ambient workflow.
+  </Card>
+</CardGrid>
+
+## Why two PreToolUse hooks
+
+Defense in depth. The two hooks check different things and fail
+independently:
+
+- **Jira write gate** answers *"is this a high-blast-radius operation that
+  needs human confirmation?"*. Fires for the two Jira write tools, asks
+  the UI when `DRY_RUN` is unset.
+- **Secret scanner** answers *"is there a secret in this payload?"*. Fires
+  for all four Slack/Jira write tools, denies outright if a credential
+  pattern is found.
+
+Either can fire on the same tool call (e.g. `jira_create_issue`). The
+secret scanner's `deny` is hard — the call doesn't go through. The Jira
+write gate's `ask` is soft — the user can confirm and the call proceeds.
+
+<Aside type="tip">
+The hook layer is **strictly more powerful than the MCP server layer**
+for safety checks, because the hook fires BEFORE the tool call leaves
+Claude's context. The user gets a chance to stop the call. The server
+layer is your *second* line of defense (DRY_RUN short-circuit), not your
+first.
+</Aside>
+
+## Wiring
+
+Hooks are registered in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__jira__.*",
+        "hooks": [{ "type": "command", "command": ".claude/hooks/gate-jira-writes.mjs" }]
+      },
+      {
+        "matcher": "mcp__(slack|jira)__.*",
+        "hooks": [{ "type": "command", "command": ".claude/hooks/scan-secrets.mjs" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [{ "type": "command", "command": ".claude/hooks/detect-transcript.mjs" }]
+      }
+    ]
+  }
+}
+```
+
+Each hook reads a JSON event from stdin, optionally writes a
+`hookSpecificOutput` to stdout, and exits. The protocol is documented at
+https://docs.claude.com/en/docs/claude-code/hooks.
+
+## The hook protocol in one paragraph
+
+The hook script reads a JSON event from stdin. The event contains the
+tool name (`tool_name`), the tool inputs (`tool_input`), and event
+metadata. The hook can:
+
+1. **Exit 0 silently** → allow the tool call to proceed.
+2. **Write `{"hookSpecificOutput": {"permissionDecision": "ask",
+   "permissionDecisionReason": "..."}}` to stdout** → ask the user to
+   confirm before proceeding.
+3. **Write `{"hookSpecificOutput": {"permissionDecision": "deny",
+   "permissionDecisionReason": "..."}}` to stdout** → block the tool
+   call outright. The agent sees the denial and can adjust its plan.
+
+Failure-open is the default — if the hook errors or returns malformed
+JSON, the tool call proceeds. This is the right default: a buggy hook
+shouldn't take down the agent. But it means hook logic needs to be
+correct, simple, and well-tested.

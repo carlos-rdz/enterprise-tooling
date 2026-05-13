@@ -1,0 +1,93 @@
+---
+title: Evals & quality
+description: LLM-judge eval harness with golden YAMLs, token-cost tracking, and a baseline gated in CI. 8/8 cases pass. ~$0.25 per full run.
+---
+
+import { Aside, CardGrid, Card, LinkCard } from "@astrojs/starlight/components";
+
+Behavioral eval harness with an LLM judge. Every skill in this repo has a
+golden YAML rubric, every PR is gated on the baseline pass count, and the
+judge's token cost is tracked per run so the eval-gate doesn't surprise
+anyone.
+
+<CardGrid>
+  <Card title="8/8 cases pass" icon="approve-check">
+    Current baseline locked in CI. A change that drops the pass rate
+    below baseline fails the build.
+  </Card>
+  <Card title="~$0.25/run" icon="seti:image">
+    Judge cost on Opus 4.7 input + output + cache-read tokens. The
+    `evals/run.py` script tracks the full breakdown and writes it to
+    `evals/report.md`.
+  </Card>
+  <Card title="Behavioral, not exact-match" icon="comment">
+    The judge grades the model's reasoning, not its phrasing. Rubrics
+    are written as `must_have` / `must_not_have` behaviors.
+  </Card>
+  <Card title="Nightly + on-demand" icon="seti:clock">
+    `.github/workflows/evals.yml` runs the suite nightly and on manual
+    dispatch. The pass rate cannot regress on a PR.
+  </Card>
+</CardGrid>
+
+## Run it
+
+```bash
+python evals/run.py                 # all skills
+python evals/run.py meeting-killer  # one skill
+python evals/run.py oncall-companion
+```
+
+Per-case outputs are captured to `evals/runs/<ts>/` so you can read what
+the agent actually produced when a judge verdict is unexpected. The
+top-level report is at `evals/report.md`.
+
+## How it works
+
+1. **Load cases.** Each `evals/golden/<skill>.yaml` declares a set of
+   cases with `id`, `description`, an input (question or transcript path),
+   `must_have` properties, and `must_not_have` properties.
+2. **Run the agent.** The harness invokes the same agent the user would
+   — same model, same prompts, same MCP servers (synthetic mode in CI).
+3. **Judge.** The agent's full output is handed to a separate judge
+   model call (Opus 4.7) along with the rubric. The judge scores each
+   `must_have` and `must_not_have` independently and produces an overall
+   pass/fail.
+4. **Report.** Markdown report written to `evals/report.md` with
+   per-case verdict, judge reasoning, and token cost.
+
+## What's in the suite
+
+| Skill | Cases | Notes |
+|---|---|---|
+| `meeting-killer` | 1 | The canonical FlexPay Q3 synchronous-meeting case. Hostile-by-design transcript. |
+| `pm-memory` | 3 | Q3 expansion blunt warning, why-was-it-killed, mobile-eligibility landmine. |
+| `cross-team` | 2 | Triangulation across team-registry + Jira + Slack. Tests second-order overlap detection. |
+| `oncall-companion` | 2 | Pattern-recognition across prior pages. Tests that the agent reads memory before responding. |
+
+## Why this matters
+
+Most "AI for engineering" deployments don't have eval coverage at all.
+The Pragmatic Engineer 2026 survey of 906 engineers doesn't even mention
+evals.
+
+The eval-gate is the difference between "behavior changes randomly with
+every prompt edit" and "behavior changes only when you intend it to." For
+production AI tools at a regulated company, this is the difference
+between maintainable and unmaintainable.
+
+<LinkCard
+  title="How to add a case"
+  description="The structure of a golden YAML, how to write must_have / must_not_have behaviors, what the judge can and can't reliably detect."
+  href="/enterprise-tooling/evals/writing-cases/"
+/>
+
+<Aside type="tip">
+The judge model is the same as the agent model (Opus 4.7). That's not
+a bug — the judge gets a different prompt with explicit grading
+instructions and the rubric, so the asymmetry between "produce an answer
+to this question" and "grade whether the answer matches the rubric" is
+strong enough to keep them honest. If you want a stronger separation,
+swap the judge to a different vendor's model and the runner abstraction
+holds.
+</Aside>

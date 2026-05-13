@@ -1,0 +1,103 @@
+---
+title: MCP servers
+description: Four TypeScript MCP servers — pm-memory, team-registry, slack, jira — wrapping local corpora and live SaaS APIs behind typed Zod schemas.
+---
+
+import { LinkCard, CardGrid, Card, Aside } from "@astrojs/starlight/components";
+
+Every external system this repo touches is wrapped in an MCP server.
+Skills and subagents call those tools — they never reach for the data
+directly. The contract: a typed Zod schema per tool, `health_check`
+required, synthetic fallback when credentials are missing, `McpError` on
+failure, and `DRY_RUN=true` short-circuits writes to stderr.
+
+## The four servers
+
+| Server | Kind | Data source | Tools | Used by |
+|---|---|---|---|---|
+| [`pm-memory`](/enterprise-tooling/mcp-servers/pm-memory/) | local | `02_pm_memory/corpus/` (synthetic PRDs, tickets, customer calls) | `list_documents`, `get_document`, `search_corpus`, `health_check` | `pm-memory` skill, `pm-historian` subagent |
+| [`team-registry`](/enterprise-tooling/mcp-servers/team-registry/) | local | `03_cross_team/team_data/teams.md` | `list_teams`, `get_team_activity`, `search_across_teams`, `health_check` | `cross-team` skill, `cross-team-integrator` subagent |
+| [`slack`](/enterprise-tooling/mcp-servers/slack/) | live API + synthetic fallback | Slack Web API (`@slack/web-api`) | `slack_search_messages`, `slack_get_channel_history`, `slack_post_message`, `slack_send_dm`, `slack_lookup_user`, `health_check` | all four workflows |
+| [`jira`](/enterprise-tooling/mcp-servers/jira/) | live API + synthetic fallback | Jira Cloud REST v3 | `jira_search_issues`, `jira_get_issue`, `jira_create_issue`, `jira_add_comment`, `jira_list_projects`, `health_check` | all four workflows |
+
+<CardGrid>
+  <LinkCard
+    title="pm-memory"
+    description="Local-data MCP. PRDs, tickets, customer-call summaries. The backbone of the PM domain memory workflow."
+    href="/enterprise-tooling/mcp-servers/pm-memory/"
+  />
+  <LinkCard
+    title="team-registry"
+    description="Local-data MCP. Per-team mission, current sprint, recent decisions. The backbone of the cross-team integrator."
+    href="/enterprise-tooling/mcp-servers/team-registry/"
+  />
+  <LinkCard
+    title="slack"
+    description="Live Slack Web API or synthetic fallback. Read messages + post / DM (DRY_RUN-gated)."
+    href="/enterprise-tooling/mcp-servers/slack/"
+  />
+  <LinkCard
+    title="jira"
+    description="Live Jira Cloud REST v3 or synthetic fallback. Read + write tools; writes also gated by a PreToolUse hook."
+    href="/enterprise-tooling/mcp-servers/jira/"
+  />
+</CardGrid>
+
+## Shared infrastructure
+
+All four servers depend on a small shared layer in
+`mcp_servers/_shared/`:
+
+- `logger.ts` — pino-based JSON logger to stderr. Never writes to stdout
+  (stdio MCP transport reserves stdout for protocol frames).
+- `cache.ts` — `LRUCache` with TTL eviction. Wraps read-heavy endpoints
+  whose data is slow-changing (project list, channel list, user lookups).
+- `retry.ts` — exponential backoff with rate-limit awareness. Honors
+  `Retry-After` headers from Slack and Jira. Used by every upstream API
+  call in the live MCP servers.
+
+## Registering a server
+
+`.mcp.json` at the repo root tells Claude Code which servers to spawn:
+
+```json
+{
+  "mcpServers": {
+    "pm-memory": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/pm_memory/server.ts"],
+      "description": "Local PM corpus: PRDs, tickets, customer-call summaries."
+    },
+    "team-registry": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/team_registry/server.ts"]
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/slack/server.ts"],
+      "env": { "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}", "DRY_RUN": "${DRY_RUN:-}" }
+    },
+    "jira": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/jira/server.ts"],
+      "env": {
+        "JIRA_HOST": "${JIRA_HOST}",
+        "JIRA_EMAIL": "${JIRA_EMAIL}",
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
+        "DRY_RUN": "${DRY_RUN:-}"
+      }
+    }
+  }
+}
+```
+
+The plugin manifest at `.claude-plugin/plugin.json` references the same
+servers; installing the plugin gets you all four at once.
+
+<Aside type="tip" title="Adding your own MCP server">
+The contract is small: one file (`server.ts`) plus registration in two
+places (`.mcp.json` + `plugin.json`). The
+[adding-an-MCP-server guide](/enterprise-tooling/guides/adding-an-mcp-server/)
+walks through a complete `linear` server example with all ten checklist
+items.
+</Aside>

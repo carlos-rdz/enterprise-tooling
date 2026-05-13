@@ -1,0 +1,143 @@
+---
+title: Three operational modes
+description: Synthetic, dry-run, and live — the three modes every live MCP server in this repo supports, and why all three are first-class.
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+Every MCP server in this repo that wraps a third-party SaaS API supports
+three modes, chosen automatically based on environment variables:
+
+| Mode | Trigger | Reads | Writes |
+|---|---|---|---|
+| **synthetic** | Credentials missing | Local fixtures | Local fixtures |
+| **dry-run** | Credentials set, `DRY_RUN=true` | Real API | Logged to stderr, never sent |
+| **live** | Credentials set, `DRY_RUN` unset | Real API | Real API |
+
+This isn't a fallback chain dictated by failure — it's three intentional
+modes a single binary supports. Each mode has its own job.
+
+## Synthetic
+
+The default state for a fresh clone. No tokens, no network calls — every
+read returns from `synthetic.ts` fixtures, every write returns a
+fixture-shaped success. The same code paths handle synthetic and live; only
+the data source changes.
+
+```ts
+// Inside any MCP server:
+const SYNTHETIC = !process.env.SLACK_BOT_TOKEN;
+
+server.tool("slack_search_messages", "...", { query: z.string() }, async ({ query }) => {
+  if (SYNTHETIC) {
+    return { content: [{ type: "text", text: JSON.stringify(synth.search(query)) }] };
+  }
+  const hits = await slack.search.messages({ query });
+  return { content: [{ type: "text", text: JSON.stringify(hits) }] };
+});
+```
+
+**Why it matters:**
+
+- `git clone && npm install && npx tsx ...` always works. No friction
+  between a stranger finding the repo and trying it.
+- CI runs the full vitest suite against synthetic mode — no network, no
+  rate limits, no flaky tests.
+- The synthetic dataset tells a coherent story (the FlexPay Q3 expansion
+  scenario), so the demos hold together across all four workflows without
+  any coordination from you.
+
+<Aside type="tip">
+The synthetic dataset isn't a stub — it's an actual product scenario with
+internally consistent PRDs, tickets, customer calls, Slack threads, and
+team activity. The same FlexPay Standard expansion story shows up in
+`pm-memory` corpus, `team-registry` activity, synthetic Jira tickets, and
+synthetic Slack threads. The cross-team integrator can triangulate across
+all four MCP servers and produce a coherent answer with zero live
+credentials.
+</Aside>
+
+## Dry-run
+
+Real reads, fake writes. The mode you actually demo from.
+
+```bash
+SLACK_BOT_TOKEN=xoxb-...
+JIRA_HOST=yourco.atlassian.net
+JIRA_EMAIL=you@yourco.com
+JIRA_API_TOKEN=...
+DRY_RUN=true
+```
+
+In dry-run, reads hit the real API — you see your real Slack channels, your
+real Jira tickets. But every write tool short-circuits before the network
+call:
+
+```ts
+server.tool("slack_post_message", "...", { channel: z.string(), text: z.string() }, async ({ channel, text }) => {
+  if (DRY_RUN) {
+    log.info({ channel, text }, "DRY_RUN: would post message");
+    return { content: [{ type: "text", text: JSON.stringify({ ok: true, dry_run: true, channel, text }) }] };
+  }
+  const resp = await slack.chat.postMessage({ channel, text });
+  return { content: [{ type: "text", text: JSON.stringify(resp) }] };
+});
+```
+
+**Why it matters:**
+
+- You can run the full meeting-killer flow against your own workspace —
+  read a real transcript, propose real followup messages — without ever
+  spamming a channel or littering your Jira project.
+- Every tool that can mutate gets a printable preview of the exact payload
+  it would have sent. Reviewable before you flip the switch.
+- The Jira-write hook in `.claude/hooks/gate-jira-writes.mjs` also fires
+  in dry-run — the user-confirmation UI prompt is itself part of the demo.
+
+## Live
+
+Tokens set, `DRY_RUN` unset. The model can now mutate your real systems.
+
+This mode exists because every other mode is preparation for this one. But
+the repo deliberately doesn't make it the default — every layer reminds
+you that you're in live mode:
+
+- The Jira-write hook fires before any `jira_create_issue` or
+  `jira_add_comment` and asks for explicit UI confirmation.
+- The secret-scanner hook blocks any write payload containing a credential
+  prefix or a high-entropy hex blob.
+- The MCP gateway audit log records every authenticated request, with the
+  user_id, server, tool_name, status, and latency.
+- Every write tool still logs the payload via pino at info level — visible
+  in the structured log stream even when the call succeeds.
+
+<Aside type="caution">
+Flipping `DRY_RUN` off is the point where you've explicitly opted into
+real mutations. Make sure your bot scopes are minimal, your Jira token is
+on a service account (not a human), and your audit log is being shipped
+somewhere durable before you run this against production data.
+</Aside>
+
+## The pattern, generalized
+
+If you're adding a new MCP server that wraps a third-party SaaS, the
+three-mode contract is:
+
+```ts
+const CREDS_SET = !!process.env.YOUR_API_KEY;
+const SYNTHETIC = !CREDS_SET;
+const DRY_RUN = process.env.DRY_RUN === "true";
+
+// reads:
+if (SYNTHETIC) return synth.read(...);
+return realRead(...);
+
+// writes:
+if (SYNTHETIC) return synth.write(...);
+if (DRY_RUN) { log.info({ payload }, "DRY_RUN: would write"); return { ok: true, dry_run: true }; }
+return realWrite(...);
+```
+
+That's the entire contract. The
+[adding-an-MCP-server guide](/enterprise-tooling/guides/adding-an-mcp-server/)
+walks through a complete `linear` server example end-to-end.

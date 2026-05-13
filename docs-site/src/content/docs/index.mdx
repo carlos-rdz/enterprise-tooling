@@ -1,0 +1,137 @@
+---
+title: enterprise-coordination
+description: An open MCP collection for upstream engineering coordination. Four workflows, four MCP servers, eight evals, one installable plugin.
+template: splash
+hero:
+  tagline: |
+    Coding assistants are saturated. The upstream layer — meetings, PM memory,
+    cross-team coordination, oncall pattern recognition — is wide open. This
+    repo is what happens when you point the Claude Code + Claude API stack
+    there instead of at the IDE.
+  actions:
+    - text: Quick Start
+      link: /enterprise-tooling/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/carlos-rdz/enterprise-tooling
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+<CardGrid stagger>
+  <LinkCard
+    title="Quick Start"
+    description="Clone, install, run the four workflows in under five minutes — no live credentials required."
+    href="/enterprise-tooling/getting-started/"
+  />
+  <LinkCard
+    title="Architecture"
+    description="The tool-surface coverage matrix and how skills + subagents + MCP servers + hooks compose."
+    href="/enterprise-tooling/concepts/architecture/"
+  />
+  <LinkCard
+    title="Landscape research"
+    description="Why this repo exists. A public-source audit of Stripe / Block / BlackRock / JPM / Klarna / Ramp."
+    href="/enterprise-tooling/reference/landscape-research/"
+  />
+</CardGrid>
+
+## At a glance
+
+<CardGrid>
+  <Card title="4 workflows" icon="rocket">
+    Meeting killer, PM memory, cross-team integrator, oncall companion. Each
+    implemented twice — once as a raw Python script, once as a Claude Code
+    plugin (skill + slash + subagent + MCP + hook).
+  </Card>
+  <Card title="4 MCP servers" icon="puzzle">
+    `pm-memory`, `team-registry`, `slack`, `jira`. TypeScript, typed Zod
+    schemas, synthetic fallback, retry-with-backoff, LRU cache, `health_check`
+    tool. Live API or synthetic depending on whether env vars are set.
+  </Card>
+  <Card title="43 vitest + 46 pytest" icon="approve-check">
+    Every push gated on `tsc --noEmit`, `mypy --strict`, vitest, pytest, MCP
+    smoke tests, and hook tests.
+  </Card>
+  <Card title="8/8 evals" icon="seti:yaml">
+    LLM-judge harness with golden YAMLs, token-cost tracking, baseline locked
+    in CI. ~$0.25/run on Opus 4.7. Eval pass rate cannot regress on a PR.
+  </Card>
+</CardGrid>
+
+## The bet
+
+Every fintech has saturated coding assistants. 95% of engineers use AI weekly.
+75% use it for half their work. The IDE problem is table stakes within twelve
+months.
+
+The actual leverage is *upstream*:
+
+- A typical engineering week has more hours of meetings than focused code.
+- Product teams onboard onto products they don't yet understand, with no fast
+  way to learn the history.
+- Cross-team coordination overhead compounds with org size — and AI is
+  uniquely well-suited to dissolve it.
+- Oncall rotations rediscover the same patterns every quarter because there
+  is no shared memory across pages.
+
+Zero major fintech publicly does what this repo does on the coordination
+layer. The thesis is wide open — see the [landscape audit](/enterprise-tooling/reference/landscape-research/)
+for the receipts.
+
+## Production-shaped, not toy-shaped
+
+<CardGrid>
+  <Card title="MCP gateway" icon="setting">
+    Bearer-token auth, per-user rate limits, per-server ACLs, JSONL audit
+    log with SOX-compatible schema. JWT-ready upgrade path.
+  </Card>
+  <Card title="Three operational modes" icon="seti:config">
+    `synthetic` (no creds, clone-and-run works) → `dry-run` (real reads, fake
+    writes) → `live`. Same code paths handle all three.
+  </Card>
+  <Card title="LLM-judge eval harness" icon="magnifier">
+    8/8 baseline pass, gated in CI, judge-cost tracked per run. The
+    eval-gate, not an afterthought.
+  </Card>
+  <Card title="PreToolUse hooks" icon="warning">
+    Jira write gate (asks before mutating real tickets) + secret scanner
+    (14 credential patterns + entropy heuristic). Defense in depth at the
+    hook layer, not just the server layer.
+  </Card>
+</CardGrid>
+
+## Get going
+
+```bash
+git clone https://github.com/carlos-rdz/enterprise-tooling
+cd enterprise-tooling
+npm install
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Then inside a Claude Code session:
+
+```
+/meeting-killer 01_meeting_killer/transcript.md
+/pm-memory We're being asked to ship FlexPay Standard in Q3. What do I need to know?
+/cross-team I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across teams?
+/oncall paste-your-page-here
+```
+
+Or run the raw Python forms directly:
+
+```bash
+python 01_meeting_killer/agent.py
+python 02_pm_memory/agent.py "why was FlexPay Standard killed last year"
+python 03_cross_team/agent.py "who else is touching biometric auth right now"
+python 04_oncall_companion/agent.py < 04_oncall_companion/incidents/page_001.md
+```
+
+Same model. Same prompts. Very different leverage. That's the point of
+investing in the platform layer instead of building one-off scripts.

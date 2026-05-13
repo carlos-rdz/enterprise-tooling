@@ -1,0 +1,203 @@
+---
+title: Meeting killer
+description: Ingest a meeting transcript and produce a structured action graph, per-attendee followup drafts, an attendance audit, and a blunt sync-vs-async verdict.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from "@astrojs/starlight/components";
+
+<Aside type="note">
+A 60-second demo will land here.
+</Aside>
+
+<video controls width="100%" src="/enterprise-tooling/videos/meeting-killer.mp4"></video>
+
+## What it does
+
+Reads a meeting transcript and produces four artifacts. Tone: direct. No
+corporate hedging.
+
+<CardGrid>
+  <Card title="One-line verdict" icon="comment-alt">
+    Did this meeting need to be synchronous? One sentence.
+  </Card>
+  <Card title="Sync score" icon="seti:notebook">
+    0 (should have been an async memo) to 10 (could not have been anything
+    else).
+  </Card>
+  <Card title="Action graph" icon="list-format">
+    Every commitment as `{owner, action, due_by, depends_on, risk_if_missed}`.
+  </Card>
+  <Card title="Attendance audit" icon="user">
+    Per attendee: `essential` / `borderline` / `could_have_been_briefed`,
+    with a one-line reason.
+  </Card>
+  <Card title="Structural observations" icon="warning">
+    Patterns the org should fix — late surfacing, no single owner, etc.
+  </Card>
+  <Card title="Followup drafts" icon="email">
+    Short Slack or email message per attendee with action items or
+    unresolved questions.
+  </Card>
+</CardGrid>
+
+Optionally creates Jira tickets and Slack DMs to push the followups into
+the systems people actually live in. The Jira-write hook gates those
+mutations behind explicit user confirmation.
+
+## The two implementations
+
+<Tabs>
+<TabItem label="Raw Python form">
+
+`01_meeting_killer/agent.py` — ~150 lines, Anthropic Python SDK only.
+Uses `client.messages.parse()` with a Pydantic schema to get structured
+output back from the model.
+
+```py
+from anthropic import Anthropic
+from pydantic import BaseModel
+
+class ActionItem(BaseModel):
+    owner: str
+    action: str
+    due_by: str
+    depends_on: list[str] = []
+    risk_if_missed: str
+
+class MeetingAnalysis(BaseModel):
+    verdict: str
+    sync_score: int
+    actions: list[ActionItem]
+    attendance: list[dict]
+    structural_observations: list[str]
+    followup_drafts: dict[str, str]
+
+client = Anthropic()
+result = client.messages.parse(
+    model="claude-opus-4-7",
+    max_tokens=8000,
+    thinking={"type": "enabled", "budget_tokens": 4000},
+    response_model=MeetingAnalysis,
+    messages=[{"role": "user", "content": SYSTEM_PROMPT + transcript}],
+)
+```
+
+Run it:
+
+```bash
+python 01_meeting_killer/agent.py
+```
+
+</TabItem>
+<TabItem label="Productized form">
+
+`.claude/skills/meeting-killer/SKILL.md` — the workflow definition. The
+slash command `/meeting-killer` invokes it. A PostToolUse hook on `Write`
+detects transcript-shaped files and proactively suggests the skill.
+
+```md
+---
+name: meeting-killer
+description: Analyze a meeting transcript and produce a structured action
+  graph, per-attendee followup drafts, an attendance audit (who didn't need
+  to be there), and a blunt sync-vs-async verdict. Use whenever the user
+  provides a meeting transcript file path, pastes a transcript inline, or
+  asks "what came out of this meeting", "who needs to follow up", or "did
+  this meeting need to happen synchronously".
+---
+
+# Meeting Killer
+
+You read a meeting transcript and produce four artifacts. Tone: direct. No
+corporate hedging.
+
+## What to produce
+1. One-line verdict — did this need to be synchronous?
+2. Sync score — 0..10
+3. Action graph — {owner, action, due_by, depends_on, risk_if_missed}
+4. Attendance audit — essential / borderline / could_have_been_briefed
+5. Structural observations — patterns the org should fix
+6. Followup drafts — only for attendees with action items
+```
+
+Invoke it from Claude Code:
+
+```
+/meeting-killer 01_meeting_killer/transcript.md
+```
+
+The skill calls the `jira` and `slack` MCP servers when the user opts in
+to push followups into ticket-land.
+
+</TabItem>
+</Tabs>
+
+## Example output (excerpt)
+
+Run on `01_meeting_killer/transcript.md` — the canonical synthetic FlexPay
+Q3 expansion transcript bundled with the repo.
+
+```text
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: Should have been a written status thread — the only real
+synchronous moment was discovering the client-side eligibility gate, and
+that could have surfaced in a doc comment.
+SYNC SCORE: 3/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Sasha Pereira] Deliver directional thumbs up/down risk read on 18-24
+   segment (v1 model with caveats on thin-file confidence intervals)
+   Due: Monday (2026-05-18)
+   Depends on: Dana Liu pulling in Carlos from credit risk
+   Risk if missed: Engineering kickoff window slips; Q3 ship commitment
+   to the board is dead.
+
+2. [Aiko Tanaka] Scope mobile eng work to move FlexPay eligibility check
+   from client-side to server-side (or ship new app version) — 4-week
+   effort either path
+   Due: Wednesday (2026-05-13)
+   Risk if missed: Eligibility cannot be expanded at all — the
+   client-side gate is a hard blocker on Q3.
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[KEEP]  Priya Shankar — Driving the agenda and ended up accepting
+        cross-functional ownership. Has to be in the room.
+[KEEP]  Marcus Webb — Surfaced that nobody read the doc and reacted in
+        real time to the client-side eligibility revelation — the single
+        most consequential moment of the meeting.
+[KEEP]  Aiko Tanaka — Dropped the client-side gate bomb that reshaped the
+        entire timeline. Without her this meeting produces a wrong plan.
+[?]     Dana Liu — Contributed pushback and clarification, but could have
+        handled both in a thread.
+[?]     Sasha Pereira — Status update is a Slack message. Only value-add
+        was confirming feasibility of the Monday directional read.
+[CUT]   Tomás Reyes — His action item is blocked on Sasha's numbers
+        anyway. A FYI email would have sufficed.
+```
+
+See `01_meeting_killer/captured_output.md` for the full output.
+
+## Eval coverage
+
+`evals/golden/meeting-killer.yaml` — 1 case (`flexpay_q3_sync`). The judge
+checks for behaviors, not phrasing:
+
+- Sync score is 7 or below.
+- Wendell Ngata is classified as borderline or could-have-been-briefed.
+- Action items have explicit owners and due dates.
+- Followup draft flags Q3 commitment as not actually feasible.
+- Structural observations call out the late-surfacing client-side
+  eligibility gate.
+
+And `must_not_have`:
+
+- Vague "good discussion, action items captured" summary with no challenge
+  to the meeting's existence.
+- Marking Wendell as `essential` without explanation.

@@ -1,0 +1,149 @@
+---
+title: Getting started
+description: Clone the repo, install dependencies, and run the four workflows in under five minutes — no live credentials required.
+---
+
+import { Tabs, TabItem, Aside, Steps } from "@astrojs/starlight/components";
+
+The repo ships with a coherent synthetic dataset, so a fresh clone gets you a
+working install end-to-end without any third-party tokens. Live integrations
+with Slack and Jira are opt-in and gated behind env vars.
+
+## Prerequisites
+
+- **Node.js 22+** for the TypeScript MCP servers + vitest suite.
+- **Python 3.11+** for the raw-form agents + pytest suite + eval harness.
+- An **Anthropic API key** — `ANTHROPIC_API_KEY=sk-ant-...` exported in your
+  shell, or in a `.env` file. The raw agents and the eval harness both call
+  the Claude API directly.
+
+## Install
+
+<Steps>
+
+1. **Clone the repo.**
+
+   ```bash
+   git clone https://github.com/carlos-rdz/enterprise-tooling
+   cd enterprise-tooling
+   ```
+
+2. **Install JS dependencies** for the MCP servers.
+
+   ```bash
+   npm install
+   ```
+
+3. **Install Python dependencies** for the raw-form agents and the eval
+   harness.
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+4. **Export your Anthropic API key.**
+
+   ```bash
+   export ANTHROPIC_API_KEY=sk-ant-...
+   ```
+
+</Steps>
+
+That's it. No live Slack or Jira tokens needed — every server with a real-API
+integration falls back to a coherent synthetic dataset when credentials are
+missing. See [Credentials](/enterprise-tooling/getting-started/credentials/)
+when you want to wire in your own workspace.
+
+## First run
+
+<Tabs>
+<TabItem label="Claude Code">
+
+Inside a Claude Code session in the repo root:
+
+```
+/meeting-killer 01_meeting_killer/transcript.md
+```
+
+The slash command invokes the `meeting-killer` skill, which reads the
+transcript, calls the `jira` and `slack` MCP servers in synthetic mode, and
+produces a structured action graph + attendance audit + sync-vs-async
+verdict.
+
+Try the other three workflows:
+
+```
+/pm-memory We're being asked to ship FlexPay Standard in Q3. What do I need to know?
+/cross-team I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across teams?
+/oncall paste-your-page-here-or-give-a-file-path
+```
+
+</TabItem>
+<TabItem label="Raw Python">
+
+Same workflows, same model, no Claude Code stack:
+
+```bash
+python 01_meeting_killer/agent.py
+python 02_pm_memory/agent.py "why was FlexPay Standard killed last year"
+python 03_cross_team/agent.py "who else is touching biometric auth right now"
+python 04_oncall_companion/agent.py < 04_oncall_companion/incidents/page_001.md
+```
+
+Each script uses the Anthropic SDK directly — `client.messages.parse()` with a
+Pydantic schema for structured outputs (meeting-killer, pm-memory),
+`tool_runner().until_done()` with the memory tool (oncall-companion), or a
+manual tool-use loop (cross-team).
+
+</TabItem>
+</Tabs>
+
+<Aside type="tip">
+The `captured_output.md` file alongside each `agent.py` shows what these
+produce on the synthetic inputs — handy as a reference if you want to know
+what "good" looks like before running.
+</Aside>
+
+## Verify the install
+
+```bash
+npm test                          # 43 vitest tests — MCP servers + shared modules
+pytest tests/python -q            # 46 pytest tests — Python agents + _shared
+npm run typecheck                 # tsc --noEmit
+mypy                              # _shared + evals, strict mode
+bash scripts/typecheck-agents.sh  # per-agent strict mypy
+python evals/run.py               # full eval suite, ~$0.25 in Opus 4.7 judge tokens
+```
+
+All of the above also run on every push and PR via `.github/workflows/ci.yml`.
+
+## What's where
+
+```
+.
+├── architecture.md             # tool-surface map + composition diagram
+│
+├── .claude-plugin/plugin.json  # bundles skills + agents + commands + MCP + hooks
+├── .claude/skills/             # 4 skills (meeting-killer, pm-memory, cross-team, oncall-companion)
+├── .claude/agents/             # 3 subagents (pm-historian, cross-team-integrator, oncall-companion)
+├── .claude/commands/           # 4 slash commands
+├── .claude/hooks/              # PreToolUse: gate-jira-writes + scan-secrets
+│
+├── mcp_servers/                # TypeScript MCP servers (@modelcontextprotocol/sdk)
+│   ├── pm_memory/              # local: PRDs/tickets/calls corpus
+│   ├── team_registry/          # local: team activity snapshots
+│   ├── slack/                  # live Slack Web API + synthetic fallback
+│   └── jira/                   # live Jira Cloud REST API + synthetic fallback
+│
+├── mcp_gateway/gateway.ts      # bearer-auth + ACL + rate-limit + audit log
+├── audit_logs/                 # JSONL audit events with SOX-compatible schema
+│
+├── evals/                      # behavioral eval harness + golden YAMLs + LLM judge
+├── tests/                      # vitest + pytest
+└── .github/workflows/          # ci.yml + evals.yml
+```
+
+Next: head to [Architecture](/enterprise-tooling/concepts/architecture/) for
+the tool-surface coverage matrix and the composition diagram.

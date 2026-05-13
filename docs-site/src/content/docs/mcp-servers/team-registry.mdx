@@ -1,0 +1,68 @@
+---
+title: team-registry MCP server
+description: Local-data MCP server exposing per-team mission, current sprint, and recent decisions.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+**Source:** `mcp_servers/team_registry/server.ts`
+
+Exposes per-team current sprint state and recent decisions, so a
+cross-team integrator agent can discover hidden overlaps without
+hard-coded knowledge.
+
+Local data: parses `03_cross_team/team_data/teams.md`. In production
+this would back onto Jira + Confluence + a service-ownership graph.
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `health_check` | Returns `{ status: "ok", mode: "local", team_count: <int> }`. |
+| `list_teams` | Get the full team list with mission + lead. |
+| `get_team_activity` | Fetch one team's current sprint state + recent decisions by slug. |
+| `search_across_teams` | Keyword search across every team's activity. Cached by query string. |
+
+## Operational mode
+
+Local-data MCP server. No env vars, no live mode. Team data is parsed
+once at startup. Search results are LRU-cached.
+
+## Env vars
+
+None required.
+
+## Prod hardening
+
+- Structured logging via pino to stderr.
+- Team data loaded once at startup; LRU cache for search results.
+- `McpError` types.
+- `health_check` tool.
+
+## Example usage
+
+From the `cross-team` skill:
+
+```ts
+// Discover what teams exist
+{ "name": "list_teams", "input": {} }
+
+// Search for the concept the user mentioned
+{ "name": "search_across_teams", "input": { "query": "biometric" } }
+
+// Pull full activity for any team that came up
+{ "name": "get_team_activity", "input": { "slug": "auth-platform" } }
+```
+
+The cross-team-integrator subagent calls these in sequence — start broad
+with `list_teams`, search for the concepts in the user's question across
+every team, then drill into specific teams for their full activity to
+catch the second-order overlaps. That's the whole pattern.
+
+<Aside type="tip">
+The synthetic `teams.md` is shape-consistent with the synthetic Jira and
+Slack data — when the cross-team integrator finds biometric mentions in
+team-registry, the same tickets appear in `jira_search_issues` and the
+same conversations appear in `slack_search_messages`. The FlexPay Q3
+expansion story holds together across all three sources.
+</Aside>

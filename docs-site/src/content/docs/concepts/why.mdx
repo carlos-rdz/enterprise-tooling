@@ -1,0 +1,83 @@
+---
+title: Why this exists
+description: Coding assistants are saturated. The upstream coordination layer — meetings, PM history, cross-team coordination, oncall pattern recognition — is wide open.
+---
+
+import { Aside, LinkCard } from "@astrojs/starlight/components";
+
+Most "AI for engineering" investment goes into the IDE — code completion,
+inline suggestions, faster typing. That's the easy part and it's table stakes
+within twelve months. The harder, more leveraged work lives *upstream of
+code*:
+
+- A typical engineering week has more hours of meetings than hours of
+  focused code.
+- Product teams onboard onto products they don't yet understand and have no
+  fast way to learn the history.
+- Cross-team coordination overhead compounds with org size — and AI is
+  uniquely well-suited to dissolve it.
+- Oncall rotations rediscover the same patterns every quarter because there
+  is no shared memory across pages.
+
+This repo is an exploration of what that looks like when you compose the
+full Claude Code + Claude API stack against those problems instead of
+against the IDE.
+
+## The landscape says it's wide open
+
+Across every public source — Stripe customer story, Block's Goose
+announcement, Pragmatic Engineer survey of 906 engineers, BlackRock case
+studies, JPMorgan LLM Suite coverage:
+
+- **Zero public examples** of skill / subagent workflows attacking meetings.
+- **Zero public examples** of PM domain-memory agents over PRD / ticket /
+  customer-call corpora.
+- **Zero public examples** of cross-team integrator agents triangulating
+  registry + Jira + Slack to surface hidden collisions.
+- **Zero public examples** of oncall companions using the memory tool to
+  recall pattern across pages.
+- **Very few public examples** of LLM-as-judge eval harnesses with
+  token-cost tracking gated in CI.
+
+The entire industry is still pointing AI at the IDE.
+
+<LinkCard
+  title="Full landscape research"
+  description="Public-source audit of Stripe / Block / BlackRock / JPM / Klarna / Ramp — what they do, what they don't, and how this repo compares."
+  href="/enterprise-tooling/reference/landscape-research/"
+/>
+
+## What this repo bets on
+
+Four workflows, each implemented twice:
+
+1. **Meeting killer** — ingest a transcript, produce a structured action
+   graph, per-attendee followup drafts, attendance audit, and a blunt
+   sync-vs-async verdict.
+2. **PM domain memory** — answer product-history questions over PRDs,
+   tickets, and customer calls. Cite sources. Warn when the asker is about
+   to repeat a known mistake.
+3. **Cross-team integrator** — discover hidden cross-team dependencies and
+   overlaps by triangulating team-registry + live Jira + recent Slack.
+4. **Oncall companion** — at 3am when you're paged, recall every prior
+   incident from memory, surface patterns ("this is the third biometric
+   incident in 16 days"), and write a new memory note so the next on-call
+   benefits.
+
+Each implementation comes in two forms: a raw Python script using the
+Anthropic SDK directly, and a Claude Code plugin (skill + slash command +
+subagent + MCP server + hook). Same model. Same prompts. The productized
+form isn't smarter — it's *leveraged*.
+
+That leverage is the entire point of investing in the Claude Code platform
+layer instead of building one-off scripts.
+
+<Aside type="tip" title="What 'production-shaped' means here">
+The repo is intentionally shaped like something you could deploy. MCP
+gateway with bearer-token auth and per-server ACLs. JSONL audit log with a
+SOX-compatible schema. Three operational modes per integration (`synthetic`,
+`dry-run`, `live`). LLM-judge eval harness gated in CI with a baseline pass
+count that can't regress. PreToolUse hooks for write gating and secret
+scanning. None of this is required for a demo — all of it is required to
+take this past a demo.
+</Aside>

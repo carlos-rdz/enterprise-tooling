@@ -1,0 +1,99 @@
+name: videos
+
+# Re-render the VHS demo tapes whenever a .tape file changes.
+# Manual dispatch is also wired up for ad-hoc regeneration.
+#
+# We do NOT run the Python agents during rendering — the tapes cat
+# captured_output.md files so we never hit the Anthropic API in CI.
+
+on:
+  push:
+    paths:
+      - "videos/*.tape"
+      - ".github/workflows/videos.yml"
+  pull_request:
+    paths:
+      - "videos/*.tape"
+      - ".github/workflows/videos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node (for tsx + MCP servers)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Python (for the agent scripts the tapes reference)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Install Python deps
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install VHS + ttyd + ffmpeg
+        run: |
+          # ttyd: terminal-over-websocket VHS uses to drive a real PTY.
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          # ttyd from upstream release
+          TTYD_VERSION=1.7.7
+          curl -sSL -o /tmp/ttyd "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64"
+          sudo install -m 0755 /tmp/ttyd /usr/local/bin/ttyd
+          # VHS
+          VHS_VERSION=0.11.0
+          curl -sSL -o /tmp/vhs.tar.gz "https://github.com/charmbracelet/vhs/releases/download/v${VHS_VERSION}/vhs_${VHS_VERSION}_Linux_x86_64.tar.gz"
+          mkdir -p /tmp/vhs && tar -xzf /tmp/vhs.tar.gz -C /tmp/vhs
+          sudo install -m 0755 "$(find /tmp/vhs -name vhs -type f | head -1)" /usr/local/bin/vhs
+          vhs --version
+
+      - name: Render all tapes
+        run: |
+          set -euo pipefail
+          for tape in videos/*.tape; do
+            echo "::group::Rendering $tape"
+            vhs "$tape"
+            echo "::endgroup::"
+          done
+
+      - name: Show rendered output sizes
+        run: ls -lh videos/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos
+          path: |
+            videos/*.mp4
+            videos/*.gif
+          if-no-files-found: error
+
+      - name: Commit rendered videos back to the branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if [[ -n "$(git status --porcelain videos/)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add videos/*.mp4 videos/*.gif
+            git commit -m "ci: re-render demo videos"
+            git push
+          else
+            echo "No video changes to commit."
+          fi

@@ -1,0 +1,81 @@
+---
+title: jira MCP server
+description: Live Jira Cloud REST v3 with synthetic fallback. Read + write tools; writes also gated by a PreToolUse hook.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+**Source:** `mcp_servers/jira/server.ts`
+
+Read + write tools against Jira Cloud using basic auth (email + API
+token).
+
+## Tools
+
+| Tool | Direction | Description |
+|---|---|---|
+| `health_check` | — | Returns mode + authenticated user when live. |
+| `jira_search_issues` | read | JQL search with pagination. |
+| `jira_get_issue` | read | Fetch one issue by key. |
+| `jira_list_projects` | read | List projects. LRU-cached — projects rarely change. |
+| `jira_create_issue` | **write** | Create a new issue. Gated by `DRY_RUN` **and** by the [Jira write hook](/enterprise-tooling/hooks/jira-write-gate/). |
+| `jira_add_comment` | **write** | Add a comment to an issue. Same double-gate. |
+
+## Operational modes
+
+| State | `JIRA_HOST/EMAIL/TOKEN` | `DRY_RUN` | Behavior |
+|---|---|---|---|
+| synthetic | any unset | any | Fixtures from `mcp_servers/jira/synthetic.ts`. |
+| dry-run | all set | `true` | Real reads, writes logged to stderr. |
+| live | all set | unset | Full read + write. |
+
+## Env vars
+
+```bash
+JIRA_HOST=yourco.atlassian.net   # your Atlassian subdomain (no protocol)
+JIRA_EMAIL=you@yourco.com         # email tied to the API token
+JIRA_API_TOKEN=...                # https://id.atlassian.com/manage-profile/security/api-tokens
+DRY_RUN=true                       # optional; gates writes
+```
+
+## Prod hardening
+
+- Structured logging via pino to stderr.
+- LRU cache on project list (rarely changes).
+- `retry()` with exponential backoff on transient errors (5xx, 429,
+  network), honoring `Retry-After`.
+- Pagination on `jira_search_issues` (Jira returns `startAt` + `total`).
+- `McpError` types instead of `{ isError: true }`.
+- `health_check` hits `/myself` in live mode.
+
+## Double-gating writes
+
+Writes to Jira are the highest-blast-radius operation in this repo —
+they create persistent state in someone else's system. So they're gated
+twice:
+
+1. **`DRY_RUN=true`** at the MCP server layer short-circuits to stderr.
+2. **PreToolUse hook** at the Claude Code layer fires when `DRY_RUN` is
+   unset and asks for explicit user confirmation in the UI before the
+   tool call leaves Claude's context.
+
+See [Jira write gate](/enterprise-tooling/hooks/jira-write-gate/) for the
+hook implementation.
+
+<Aside type="caution">
+The Jira server uses basic auth (email + API token). The token inherits
+whatever the email account can do. **Scope the bot account, not the
+token.** Use a dedicated service account with project-level permissions
+limited to what the four workflows actually need.
+</Aside>
+
+## Tests
+
+`tests/mcp-servers.test.ts` runs the shared contract tests. Jira-specific
+tests verify pagination semantics on `jira_search_issues` and that
+`jira_create_issue` / `jira_add_comment` return `dry_run: true` shape in
+synthetic and dry-run modes.
+
+## Docs
+
+[Jira Cloud REST v3 reference](https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/)

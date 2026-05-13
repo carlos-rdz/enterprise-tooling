@@ -1,0 +1,100 @@
+---
+title: Audit log
+description: SOX / SR 11-7 / GLBA-compatible JSONL event schema. Sample queries, rotation, production hardening.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The MCP gateway writes one structured event per request to
+`audit_logs/audit-YYYY-MM-DD.jsonl`. Each line is a JSON object that
+conforms to the schema below. Designed to be SOX / SR 11-7 / GLBA-compatible:
+every event records *who*, *what*, *when*, *where*, *outcome*, and (on
+success) *cost*.
+
+## Event schema
+
+```json
+{
+  "ts":            "ISO 8601 UTC timestamp",
+  "request_id":    "req_<base36-ts>_<random>",
+  "user_id":       "email or service-account id",
+  "team":          "team slug from users.json",
+  "server":        "pm-memory | team-registry | slack | jira",
+  "method":        "MCP method name (e.g. 'tools/call', 'tools/list')",
+  "tool_name":     "name of the called tool, if method == tools/call",
+  "status":        "allowed | denied_auth | denied_rate_limit | denied_server_acl | error",
+  "denial_reason": "explanation when status != allowed",
+  "latency_ms":    "round-trip including backend spawn",
+  "client_ip":     "X-Forwarded-For first IP or socket remote",
+  "user_agent":    "User-Agent header"
+}
+```
+
+## Rotation
+
+Files are created on first event of each UTC day. There is no automatic
+deletion — wire `logrotate` or a cron-style cleanup if disk is bounded.
+
+## Sample queries
+
+```bash
+# Today's denial events
+jq 'select(.status | startswith("denied"))' \
+  audit_logs/audit-$(date -u +%F).jsonl
+
+# Per-user request count today
+jq -r '.user_id' audit_logs/audit-$(date -u +%F).jsonl \
+  | sort | uniq -c | sort -rn
+
+# Top tools called this week
+cat audit_logs/audit-2026-05-*.jsonl \
+  | jq -r '.tool_name // empty' \
+  | sort | uniq -c | sort -rn | head -20
+
+# Latency p50/p95 per server
+for srv in pm-memory team-registry slack jira; do
+  echo -n "$srv: "
+  jq -r --arg s "$srv" 'select(.server==$s and .latency_ms) | .latency_ms' \
+    audit_logs/audit-*.jsonl \
+    | sort -n \
+    | awk 'BEGIN{c=0} {a[c++]=$1} END{print "p50=" a[int(c*0.5)] "ms p95=" a[int(c*0.95)] "ms (n=" c ")"}'
+done
+```
+
+## What this schema does NOT capture
+
+Intentionally out of scope for the gateway's audit log; track elsewhere:
+
+- **Tool result content.** Logging tool responses verbatim would leak
+  PII / source code / ticket bodies. The cost dashboard pulls token
+  counts from agent-side logs instead.
+- **Prompts sent to the model.** Same reason. The agent-side structured
+  logs include `extra={...}` fields with usage numbers but not prompt
+  text. Sample those in dev, never in prod.
+- **Secret material.** Tokens never appear in audit events. The
+  `Authorization` header is consumed by `authenticate()` and never
+  echoed.
+
+## Production hardening
+
+For a regulated deployment, layer on top:
+
+1. **WORM storage.** Append-only object store (S3 Object Lock, Azure
+   WORM blob) — auditors require it.
+2. **Centralized aggregation.** Ship the JSONL via Fluent Bit / Vector
+   to your SIEM. Don't keep auditors waiting on `scp`.
+3. **Retention policy.** SOX is 7 years for accounting controls. Don't
+   keep more than required — that's its own liability.
+4. **Real-time alerting.** Watch for sustained `denied_auth`
+   (credential-stuffing), unexpected `denied_server_acl`
+   (lateral-movement attempt), or latency spikes (backend health).
+5. **Per-request hash chain.** Each event includes the SHA256 of the
+   prior event — cheap tamper evidence.
+
+<Aside type="tip">
+The schema is intentionally narrow. Resist the urge to log more — the
+PII / IP / secret risks of capturing prompts and tool results outweigh
+the analytical value almost every time. If you need product analytics on
+tool usage, derive them from the existing fields (`tool_name`, `status`,
+`latency_ms`) rather than expanding the audit shape.
+</Aside>

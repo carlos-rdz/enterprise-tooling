@@ -1,0 +1,161 @@
+---
+title: PM domain memory
+description: Answer product-history questions over PRDs, tickets, and customer calls. Cite sources. Warn when the asker is about to repeat a known mistake.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from "@astrojs/starlight/components";
+
+<Aside type="note">
+A 60-second demo will land here.
+</Aside>
+
+<video controls width="100%" src="/enterprise-tooling/videos/pm-memory.mp4"></video>
+
+## What it does
+
+Acts as the institutional memory for an enterprise product team. Has "read"
+every PRD, exploration doc, postmortem, ticket comment, and customer-call
+summary the team has on file. Answers questions like:
+
+- *Why was FlexPay Standard killed last year?*
+- *What have we tried before for thin-file underwriting?*
+- *Who owns the biometric step-up flow today?*
+- *What risks exist on this product that history has already shown us?*
+
+Cites sources. Warns when the asker is about to repeat a known mistake.
+
+## The two implementations
+
+<Tabs>
+<TabItem label="Raw Python form">
+
+`02_pm_memory/agent.py` — uses prompt caching on the corpus so repeated
+questions over the same docs amortize the input cost.
+
+```py
+client = Anthropic()
+resp = client.messages.create(
+    model="claude-opus-4-7",
+    max_tokens=4000,
+    thinking={"type": "enabled", "budget_tokens": 4000},
+    system=[
+        { "type": "text", "text": SYSTEM_PROMPT },
+        {
+            "type": "text",
+            "text": corpus_blob,
+            "cache_control": {"type": "ephemeral"},
+        },
+    ],
+    messages=[{"role": "user", "content": question}],
+)
+```
+
+The corpus block (`02_pm_memory/corpus/` — synthetic PRDs, tickets,
+customer calls) is marked `cache_control: ephemeral` so subsequent calls
+in the same 5-minute TTL hit the cache.
+
+Run it:
+
+```bash
+python 02_pm_memory/agent.py "why was FlexPay Standard killed last year"
+```
+
+</TabItem>
+<TabItem label="Productized form">
+
+`.claude/skills/pm-memory/SKILL.md` delegates to the
+`pm-historian` subagent (`.claude/agents/pm-historian.md`), which gets its
+own context window and tool allowlist. The subagent calls the `pm-memory`
+MCP server with `search_corpus` / `get_document` / `list_documents`.
+
+```md
+---
+name: pm-memory
+description: Answer questions about an enterprise product's history — PRDs,
+  tickets, prior decisions, customer feedback — by querying the pm-memory
+  MCP server. Use when the user asks "why was X killed", "what have we
+  tried before for Y", "who owns Z", "what risks exist on product W", or
+  any question that depends on institutional product memory the asker
+  doesn't have.
+---
+
+# PM Memory
+
+You are the institutional memory for an enterprise product team.
+
+## Tools available
+
+From the `pm-memory` MCP server:
+- `list_documents` — manifest of every doc (PRDs, tickets, customer calls)
+- `get_document` — fetch the full text of one doc by path
+- `search_corpus` — case-insensitive keyword search returning matching snippets
+```
+
+Invoke it from Claude Code:
+
+```
+/pm-memory We're being asked to ship FlexPay Standard in Q3. What do I need to know?
+```
+
+</TabItem>
+</Tabs>
+
+## Example output (excerpt)
+
+```text
+======================================================================
+Q: We're being asked to ship FlexPay Standard expansion in Q3.
+   What do I need to know?
+======================================================================
+
+Q3 ship is not real unless three preconditions are met right now:
+(1) the server-side eligibility migration (PLAN-1893, 4 sprints) is
+staffed and in flight, (2) UDAAP review (COMP-2026-44, 6-8 weeks) is
+kicked off this week, and (3) risk modeling for thin-file 18-24 segment
+(RISK-1102) lands with acceptable loss bounds.
+
+None of these are on track for Q3 today. This is the exact expansion
+that was killed in 2025-Q3 for the same reasons — if you commit to Q3
+without fixing the gates first, you will either slip publicly or ship
+with the same client-side eligibility bug that's already been a
+customer-trust problem (VOC-2025-11-403).
+
+WATCH-OUTS
+  • COMP-2026-44 (UDAAP) not kicked off. 6-8 weeks minimum.
+  • RISK-1102 thin-file CIs will be wide. Plan for the possibility that
+    the risk read comes back "don't ship at these terms".
+  • Three other flows still use UIWebView (MOBILE-3402) — same tech-debt
+    clock as the FlexPay crash. Unrelated to expansion but will compete
+    for Aiko's time.
+  • Servicing FTE: the 2025 kill doc projected +14 FTE for Standard
+    volume. No evidence that budget has been approved.
+  • Strategic risk: VOC-2026-01-77 indicates FlexPay is a Premier
+    retention driver. Diluting to Standard may reduce Premier upgrade
+    pull. No one has modeled this cannibalization.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - prds/2025_fraud_signup_friction.md
+  - tickets/tickets.md
+  - convos/customer_calls.md
+```
+
+See `02_pm_memory/captured_output.md` for the full output.
+
+## Eval coverage
+
+`evals/golden/pm-memory.yaml` — 3 cases:
+
+- `why_killed_flexpay_standard_2025` — must surface the 2025 kill reasons
+  (UDAAP, eligibility migration, risk model) and cite at least two source
+  docs.
+- `risks_q3_expansion` — must flag the cannibalization risk against
+  Premier and the +14 FTE servicing ask.
+- `who_owns_biometric_today` — must distinguish between the legacy
+  biometric library (mobile-platform) and AUTH-455 (auth-platform).
+
+Pattern: behaviors not phrasing. The judge can tell the difference between
+"answers the question with citations" and "produces a plausible-sounding
+hallucination."

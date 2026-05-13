@@ -1,0 +1,81 @@
+---
+title: pm-memory MCP server
+description: Local-data MCP server exposing a corpus of PRDs, tickets, and customer-call summaries.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+**Source:** `mcp_servers/pm_memory/server.ts`
+
+Exposes a corpus of PRDs, tickets, and customer-call summaries as MCP
+tools so any subagent or Claude Code session can query product history.
+
+Local data: reads from `02_pm_memory/corpus/`. In production this would
+back onto Confluence + Jira + Gong.
+
+## Tools
+
+| Tool | Description |
+|---|---|
+| `health_check` | Returns `{ status: "ok", mode: "local", doc_count: <int> }`. |
+| `list_documents` | Manifest of every doc in the corpus, with optional path-prefix filter. Paginated. |
+| `get_document` | Fetch the full text of one doc by path. |
+| `search_corpus` | Case-insensitive keyword search returning matching snippets. Cached by query string. |
+
+All inputs validated by Zod schemas. All errors thrown as `McpError` with
+appropriate `ErrorCode`.
+
+## Operational mode
+
+This is a **local-data** MCP server — there is no live mode, no
+synthetic fallback distinction. The corpus is loaded once at startup from
+the filesystem and served from memory. Search results are cached in an
+LRU with a TTL.
+
+## Env vars
+
+None required. The corpus path is hard-coded relative to the repo root.
+
+To point it at a different corpus, edit `CORPUS_ROOT` in `server.ts` or
+fork the server.
+
+## Prod hardening
+
+- Structured logging via pino to stderr.
+- Corpus loaded once at startup; LRU cache for search results.
+- Pagination on `search_corpus` and `list_documents`.
+- `McpError` types — no `{ isError: true }` returns.
+- `health_check` for readiness probes.
+
+## Example usage
+
+From the `pm-memory` skill:
+
+```ts
+// Tool call shape that the model emits:
+{
+  "name": "search_corpus",
+  "input": { "query": "FlexPay Standard killed", "limit": 20 }
+}
+
+// Response:
+{
+  "content": [{
+    "type": "text",
+    "text": "{ \"hits\": [{ \"path\": \"prds/2025_plan_it_gold_explore.md\", \"snippet\": \"...we killed Standard expansion in 2025-Q3 because UDAAP review...\" }] }"
+  }]
+}
+```
+
+## Tests
+
+`tests/mcp-servers.test.ts` runs the shared synthetic-mode contract tests
+(`health_check`, tools/list returns ≥ 1 tool). Server-specific tests
+verify search hit shape and pagination semantics.
+
+<Aside type="note">
+The corpus is intentionally fabricated. See
+[SYNTHETIC_DATA_NOTICE.md](https://github.com/carlos-rdz/enterprise-tooling/blob/main/SYNTHETIC_DATA_NOTICE.md)
+— every name, product, and ticket is synthetic and consistent across
+the four workflows so the demos hold together as one story.
+</Aside>

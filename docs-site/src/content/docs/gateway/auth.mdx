@@ -1,0 +1,142 @@
+---
+title: Gateway auth
+description: Bearer-token authentication against a user allowlist, per-server ACLs, per-user rate limits, and the JWT upgrade path.
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+The gateway authenticates every request against a user allowlist file
+(`users.json`) and enforces per-server ACLs and per-user rate limits
+before forwarding the request to the appropriate backend MCP server.
+
+## The user store
+
+`mcp_gateway/users.json` is the source of truth. Each entry describes
+one user (or service account):
+
+```json
+[
+  {
+    "user_id": "alice@yourco.com",
+    "team": "platform-eng",
+    "token": "tok_alice_replace_me",
+    "allowed_servers": ["pm-memory", "team-registry", "slack", "jira"],
+    "rate_limit_per_min": 60,
+    "monthly_token_budget_usd": 25
+  },
+  {
+    "user_id": "svc-cross-team-ci",
+    "team": "platform-eng",
+    "token": "tok_svc_ci_replace_me",
+    "allowed_servers": ["team-registry", "jira"],
+    "rate_limit_per_min": 200,
+    "monthly_token_budget_usd": 100
+  }
+]
+```
+
+Copy `users.example.json` to `users.json` and replace the placeholder
+tokens with strong random values:
+
+```bash
+cp mcp_gateway/users.example.json mcp_gateway/users.json
+python -c "import secrets; print('tok_' + secrets.token_urlsafe(32))"
+```
+
+<Aside type="caution">
+`users.json` contains live tokens. Do not commit it. The file is
+gitignored alongside `.env`. In production, replace the file load with
+a JWT validator (see below).
+</Aside>
+
+## Request flow
+
+```
+HTTP request → authenticate() → checkRateLimit() → checkServerACL() → forwardToBackend() → audit emit
+```
+
+1. **`authenticate()`** parses the `Authorization: Bearer <token>`
+   header, looks up the user by token, and returns the user record.
+   Failure → `denied_auth` status code 401.
+2. **`checkRateLimit()`** runs the per-user fixed-window counter against
+   `rate_limit_per_min`. Failure → `denied_rate_limit` status code 429.
+3. **`checkServerACL()`** verifies the requested `{server_name}` is in
+   the user's `allowed_servers`. Failure → `denied_server_acl` status
+   code 403.
+4. **`forwardToBackend()`** spawns the backend MCP server, sends the
+   request via stdio, returns the response. Failure → `error` status
+   code 502.
+5. **Audit emit** writes one JSONL line to
+   `audit_logs/audit-YYYY-MM-DD.jsonl` regardless of outcome.
+
+Every failure path is logged with the same audit shape. You can trivially
+query for credential-stuffing, lateral-movement, or runaway-loop
+patterns:
+
+```bash
+# Today's denial events grouped by user
+jq -r 'select(.status | startswith("denied")) | "\(.user_id) \(.status)"' \
+  audit_logs/audit-$(date -u +%F).jsonl | sort | uniq -c | sort -rn
+```
+
+## JWT upgrade path
+
+For production, replace the static `users.json` with a JWT validator
+against your IdP's JWKS endpoint. The downstream interface (the `User`
+struct) stays the same — only `loadUsers()` and `authenticate()` change.
+
+```ts
+// Production sketch:
+import { jwtVerify, createRemoteJWKSet } from "jose";
+
+const JWKS = createRemoteJWKSet(new URL(process.env.IDP_JWKS_URL!));
+
+async function authenticate(req: IncomingMessage): Promise<User | null> {
+  const auth = req.headers.authorization ?? "";
+  const token = auth.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: process.env.IDP_ISSUER,
+      audience: "mcp-gateway",
+    });
+    return {
+      user_id: payload.sub!,
+      team: (payload as any).team ?? "default",
+      // ACL / rate limit / budget from claims or a side lookup
+      allowed_servers: (payload as any).mcp_servers ?? [],
+      rate_limit_per_min: (payload as any).rate_limit ?? 60,
+      monthly_token_budget_usd: (payload as any).budget_usd ?? 25,
+    };
+  } catch {
+    return null;
+  }
+}
+```
+
+The rest of the request flow doesn't change — `checkRateLimit()`,
+`checkServerACL()`, `forwardToBackend()`, and the audit emit all
+operate on the same `User` struct regardless of where it came from.
+
+## ACL design notes
+
+- `allowed_servers` is an array per user. There's no role concept yet —
+  if you find yourself maintaining the same array for many users, add a
+  `roles: ["pm-reader", "incident-responder"]` field and resolve to
+  servers in a separate role-map. Keep the gateway logic simple; push
+  the policy complexity into the auth layer.
+- The gateway does **not** do tool-level ACLs. If you need "team X can
+  read Jira but not write Jira," currently that's the job of a
+  PreToolUse hook (see [Jira write gate](/enterprise-tooling/hooks/jira-write-gate/)).
+  A future direction is per-tool ACL in the gateway's user record.
+
+## Rate-limit design notes
+
+- In-memory `Map<user_id, { count, windowStart }>`. Resets each minute.
+- Works fine for a single gateway process. For multi-instance, swap to
+  Redis with a sliding window — the comment in `gateway.ts` points to
+  the upgrade.
+- The limit is requests-per-minute, not tokens-per-minute. Token-budget
+  enforcement is a separate concern (see `monthly_token_budget_usd`,
+  enforced offline by the cost dashboard rather than by the gateway).

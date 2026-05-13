@@ -1,0 +1,98 @@
+---
+title: slack MCP server
+description: Live Slack Web API with synthetic fallback. Read messages, post messages, send DMs. DRY_RUN-gated writes.
+---
+
+import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
+
+**Source:** `mcp_servers/slack/server.ts`
+
+Read + write tools against a Slack workspace via `@slack/web-api`.
+
+## Tools
+
+| Tool | Direction | Description |
+|---|---|---|
+| `health_check` | — | Verifies connectivity. Returns mode (`synthetic` / `live`) and authenticated user when live. |
+| `slack_search_messages` | read | Search across workspace messages by keyword. |
+| `slack_get_channel_history` | read | Fetch recent messages from a named channel. |
+| `slack_lookup_user` | read | Resolve a user by email or display name. |
+| `slack_post_message` | **write** | Post a message to a channel. Gated by `DRY_RUN`. |
+| `slack_send_dm` | **write** | Send a direct message to a user. Gated by `DRY_RUN`. |
+
+All inputs validated by Zod schemas. All errors thrown as `McpError` with
+appropriate `ErrorCode`.
+
+## Operational modes
+
+Driven entirely by env vars on startup. See
+[Three operational modes](/enterprise-tooling/concepts/three-modes/) for
+the full pattern.
+
+| State | `SLACK_BOT_TOKEN` | `DRY_RUN` | Behavior |
+|---|---|---|---|
+| synthetic | unset | any | Fixtures from `mcp_servers/slack/synthetic.ts`. |
+| dry-run | set | `true` | Real reads, writes logged to stderr. |
+| live | set | unset | Full read + write. |
+
+## Env vars
+
+```bash
+SLACK_BOT_TOKEN=xoxb-...   # required for live mode
+DRY_RUN=true               # optional; gates writes when set with live token
+```
+
+## Required Slack bot scopes
+
+```
+channels:history
+channels:read
+groups:history
+groups:read
+im:write
+chat:write
+search:read
+users:read
+users:read.email
+```
+
+## Prod hardening
+
+- Structured logging via pino to stderr.
+- LRU cache on read-heavy endpoints (channel list, user lookups).
+- `retry()` from `_shared/retry.ts` on every Slack API call —
+  exponential backoff, honors Slack rate-limit `Retry-After` headers.
+- Pagination support on read endpoints.
+- `McpError` types instead of `{ isError: true }`.
+- `health_check` tool that hits `auth.test` in live mode.
+
+## DRY_RUN semantics
+
+```ts
+server.tool("slack_post_message", "...", { channel, text }, async (input) => {
+  if (SYNTHETIC) {
+    return { content: [{ type: "text", text: JSON.stringify(synth.post(input)) }] };
+  }
+  if (DRY_RUN) {
+    log.info({ channel: input.channel, text: input.text }, "DRY_RUN: would post");
+    return { content: [{ type: "text", text: JSON.stringify({ ok: true, dry_run: true, ...input }) }] };
+  }
+  const resp = await retry(() => slack.chat.postMessage(input), { logger: log });
+  return { content: [{ type: "text", text: JSON.stringify(resp) }] };
+});
+```
+
+<Aside type="caution">
+The [secret scanner hook](/enterprise-tooling/hooks/secret-scanner/) fires
+before any `slack_post_message` or `slack_send_dm`. It denies the call if
+the payload contains any of the 14 known credential prefixes (Slack /
+GitHub / GitLab / Atlassian / Anthropic / OpenAI / Stripe / AWS / JWT /
+private-key) or a high-entropy hex blob.
+</Aside>
+
+## Tests
+
+`tests/mcp-servers.test.ts` runs the shared synthetic-mode contract tests.
+Slack-specific tests verify response shape for `slack_search_messages` /
+`slack_get_channel_history` and that write tools short-circuit cleanly
+in synthetic mode.

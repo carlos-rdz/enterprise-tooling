@@ -1,0 +1,203 @@
+---
+title: Oncall companion
+description: At 3am when you're paged, recall every prior incident from memory, surface patterns, and write a new memory note so the next on-call benefits.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from "@astrojs/starlight/components";
+
+<Aside type="note">
+A 60-second demo will land here.
+</Aside>
+
+<video controls width="100%" src="/enterprise-tooling/videos/oncall-companion.mp4"></video>
+
+## What it does
+
+You're paired with an on-call engineer. The job is to make them look like a
+senior on-call engineer at 3am no matter what time it actually is.
+
+Every page gets three things:
+
+<CardGrid>
+  <Card title="Recall" icon="open-book">
+    Read prior incident notes from memory **before** responding. Always.
+    Even if the page looks routine. Pattern recognition is the entire
+    value of this role.
+  </Card>
+  <Card title="Triage" icon="warning">
+    Produce the structured response below — pattern match, likely cause,
+    next step, escalation, notes written.
+  </Card>
+  <Card title="Remember" icon="pencil">
+    Write a new memory note for this page so the next on-call benefits.
+    The whole rotation gets compounding leverage from the corpus growing.
+  </Card>
+</CardGrid>
+
+Triage output structure:
+
+```text
+PATTERN MATCH:  <name prior pages by id/date if any, or "first occurrence">
+LIKELY CAUSE:   <based on prior incidents + this signal>
+NEXT STEP:      <what to do RIGHT NOW — mitigate, escalate, or just record>
+ESCALATION:     <if Nth occurrence of a pattern, name it and recommend the
+                 structural-fix conversation; otherwise "—">
+NOTES WRITTEN:  <memory path(s) you wrote to>
+```
+
+## The two implementations
+
+<Tabs>
+<TabItem label="Raw Python form">
+
+`04_oncall_companion/agent.py` — the most heavily-instrumented of the four
+agents. Uses two SDK features that don't appear in the other workflows:
+
+- `client.beta.messages.tool_runner().until_done()` — the SDK's managed
+  tool-loop. The runner takes a tool definition + handler and drives the
+  loop for you, calling the handler when the model emits a `tool_use`
+  block and feeding back the result.
+- `BetaAbstractMemoryTool` — a memory-tool subclass. The default lives on
+  the filesystem (`04_oncall_companion/.memory/`), with a path-traversal
+  guard that refuses any path escaping the sandbox root. A SQLite-backed
+  shared-memory variant exists in `shared_memory.py` for the
+  rotation-wide pattern.
+
+```py
+from anthropic import Anthropic
+from anthropic.lib.tools import BetaAbstractMemoryTool
+
+class FilesystemMemoryTool(BetaAbstractMemoryTool):
+    def __init__(self, root: Path):
+        self.root = root.resolve()
+
+    def _resolve(self, path: str) -> Path:
+        p = (self.root / path.lstrip("/")).resolve()
+        if not p.is_relative_to(self.root):
+            raise ValueError(f"path escape: {path}")
+        return p
+
+    # ... view / create / str_replace / insert / delete / rename ...
+
+client = Anthropic()
+memory = FilesystemMemoryTool(Path("04_oncall_companion/.memory"))
+
+runner = client.beta.messages.tool_runner(
+    model="claude-opus-4-7",
+    max_tokens=8000,
+    thinking={"type": "enabled", "budget_tokens": 4000},
+    tools=[memory],
+    messages=[{"role": "user", "content": page_text}],
+)
+final = runner.until_done()
+```
+
+Run it:
+
+```bash
+python 04_oncall_companion/agent.py < 04_oncall_companion/incidents/page_001.md
+```
+
+</TabItem>
+<TabItem label="Productized form">
+
+`.claude/skills/oncall-companion/SKILL.md` delegates to the
+`oncall-companion` subagent. The subagent has its own memory directory,
+its own tool allowlist, and explicit instructions to *always* read prior
+notes before responding.
+
+```md
+---
+name: oncall-companion
+description: An on-call companion that uses Claude's memory tool to
+  persist context across pages. Use when the user has been paged (drops
+  an alert, incident description, or pastes a PagerDuty payload), when
+  the user asks "have we seen this before", or any time the user is
+  investigating a production incident and needs pattern-recognition
+  across prior incidents. Critical at 3am when the on-call has no time
+  to dig through history manually.
+---
+
+# Oncall Companion
+
+You're paired with an on-call engineer. Your job is to make them look
+like a senior on-call engineer at 3am no matter what time it actually is.
+
+## Three things every page gets
+1. Recall — read prior incident notes from memory BEFORE responding.
+2. Triage — produce the structured response.
+3. Remember — write a new memory note for this page.
+```
+
+Invoke from Claude Code:
+
+```
+/oncall < paste your page here >
+```
+
+</TabItem>
+</Tabs>
+
+## Example invocation
+
+Input — the synthetic Page #001 bundled in `04_oncall_companion/incidents/`:
+
+```md
+# Page #001 — Auth latency spike on FlexPay plan creation
+Time: 2026-05-12 03:41 ET
+Pager: Hiroshi Sato (auth-platform on-call)
+Source: PagerDuty alert "auth-service p99 latency > 800ms for 5 min"
+
+## Initial signal
+- PD alert: auth-service /v1/biometric/validate p99 latency 1.2s
+  (baseline 180ms)
+- Affected: FlexPay plan-creation flow
+- Started ~03:32 ET
+- Error rate normal — slow, not failing
+```
+
+Expected output shape:
+
+```text
+PATTERN MATCH:  Second biometric latency spike in 2 weeks. Prior:
+                .memory/auth/2026-04-29-biometric-latency.md (unresolved,
+                AUTH-602 filed but no root-cause yet).
+
+LIKELY CAUSE:   Legacy biometric shared library capacity-constrained on
+                its node pool. Consistent shape with the 2026-04-29
+                page — same p99 jump, same error rate normal, same
+                ~30min self-mitigation.
+
+NEXT STEP:      Mitigated by self at 04:08 ET. File AUTH-603 cross-linking
+                AUTH-602 and 2026-04-29. Note the pattern publicly in
+                #auth-incidents so the next pager doesn't start cold.
+
+ESCALATION:     This is the SECOND biometric latency page in 2 weeks. The
+                structural fix is AUTH-455 (centralized biometric service
+                rewrite). Recommend Hiroshi Sato escalate prioritization
+                of AUTH-455 — the legacy library is going to keep paging
+                until it's replaced.
+
+NOTES WRITTEN:  .memory/auth/2026-05-12-biometric-latency.md
+                .memory/auth/_index.md   (added link + pattern note)
+```
+
+## Eval coverage
+
+`evals/golden/oncall-companion.yaml` — 2 cases. The judge specifically
+checks:
+
+- The agent reads prior memory *before* producing triage. (This is the
+  whole point — a page-handler that doesn't recall is useless.)
+- When the page is the Nth occurrence of a pattern, the agent names it
+  and recommends the structural-fix conversation, not just the immediate
+  mitigation.
+- The agent writes a new note for this page so the next on-call benefits.
+
+## Shared memory
+
+For multi-on-call rotations, swap the filesystem memory for the
+SQLite-backed shared store in `04_oncall_companion/shared_memory.py`. Set
+`ONCALL_SHARED_MEMORY=true`. WAL-mode, actor-tracked, soft-delete — the
+whole rotation gets the compounding pattern-recognition leverage instead
+of just the current on-call.

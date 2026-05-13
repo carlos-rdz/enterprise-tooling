@@ -1,0 +1,188 @@
+---
+title: Cross-team integrator
+description: Discover hidden cross-team dependencies, overlaps, and blockers by triangulating team-registry, Jira, and Slack in one call.
+---
+
+import { Aside, Tabs, TabItem, Card, CardGrid } from "@astrojs/starlight/components";
+
+<Aside type="note">
+A 60-second demo will land here.
+</Aside>
+
+<video controls width="100%" src="/enterprise-tooling/videos/cross-team.mp4"></video>
+
+## What it does
+
+You almost always don't know what you don't know. That's why this workflow
+exists. It triangulates three signals you would otherwise have to
+hand-merge:
+
+<CardGrid>
+  <Card title="team-registry" icon="seti:graphql">
+    Per-team mission, lead, current sprint, and recent decisions. The
+    organizational ground truth.
+  </Card>
+  <Card title="Jira (live)" icon="seti:jenkins">
+    Active and recently-moved tickets across teams. The work-in-flight
+    ground truth.
+  </Card>
+  <Card title="Slack (live)" icon="seti:slim">
+    Recent messages in cross-functional channels. The "what people are
+    actually talking about" ground truth.
+  </Card>
+</CardGrid>
+
+Output: the 2-3 critical hidden dependencies or overlaps, concrete owners
+to talk to today (by name), and the single biggest "align on this week or
+ship slips a quarter" warning.
+
+## The two implementations
+
+<Tabs>
+<TabItem label="Raw Python form">
+
+`03_cross_team/agent.py` — uses a **manual tool-use loop**. The agent
+keeps calling tools until it produces an answer with no more
+`tool_use` blocks. This is the rawest form of an agentic loop in the
+Anthropic SDK.
+
+```py
+tools = [list_teams_tool, get_team_activity_tool, search_across_teams_tool,
+         jira_search_tool, slack_search_tool]
+
+messages = [{"role": "user", "content": question}]
+
+while True:
+    resp = client.messages.create(
+        model="claude-opus-4-7",
+        max_tokens=8000,
+        thinking={"type": "enabled", "budget_tokens": 4000},
+        tools=tools,
+        messages=messages,
+    )
+    messages.append({"role": "assistant", "content": resp.content})
+    if resp.stop_reason != "tool_use":
+        break
+    tool_results = [execute(block) for block in resp.content if block.type == "tool_use"]
+    messages.append({"role": "user", "content": tool_results})
+```
+
+The agent picks its own search terms and pivots based on what it finds —
+no hardcoded query plan. OpenTelemetry instrumentation wraps the loop so
+you can see per-tool latency in your tracing backend (see
+[Observability](/enterprise-tooling/guides/observability/)).
+
+Run it:
+
+```bash
+python 03_cross_team/agent.py "who else is touching biometric auth right now"
+```
+
+</TabItem>
+<TabItem label="Productized form">
+
+`.claude/skills/cross-team/SKILL.md` delegates to the
+`cross-team-integrator` subagent
+(`.claude/agents/cross-team-integrator.md`). The subagent has its own
+allowlist over `team-registry`, `jira`, and `slack` MCP servers.
+
+```md
+---
+name: cross-team
+description: Discover hidden cross-team dependencies, overlaps, and
+  blockers by querying the team-registry MCP server. Use when the user
+  asks "who else is working on X", "what should I be worried about across
+  teams", "what's the critical path for shipping Y", or describes a
+  multi-team initiative and wants to find the things nobody has flagged.
+---
+
+# Cross-Team Integrator
+
+You proactively discover what OTHER teams are doing that overlaps with the
+user's work.
+
+## How to answer
+1. Start broad: `list_teams` to know what teams exist.
+2. Search for the concepts in the user's question across ALL teams.
+3. When you find a match in another team, fetch that team's full activity.
+4. Look for second-order overlaps.
+
+## Output structure
+1. The 2-3 critical hidden dependencies or overlaps
+2. Concrete owners to talk to TODAY — by name
+3. The single biggest "align on this week or ship slips a quarter" warning
+```
+
+Invoke from Claude Code:
+
+```
+/cross-team I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across teams?
+```
+
+</TabItem>
+</Tabs>
+
+## Example output (excerpt)
+
+```markdown
+# FlexPay Q3 Standard Expansion — Cross-Team Risk Report
+
+I dug across team-registry, Jira, and Slack. You have a real mess
+brewing. Here's the unvarnished read.
+
+## The 3 Critical Hidden Dependencies
+
+### 1. UDAAP review hasn't started — and it's a 6–8 week gate
+- COMP-2026-44 (UDAAP review for FlexPay Standard) is Not Started in Jira.
+- Brett Holloway posted in #flexpay-xfn: "Reminder UDAAP review for
+  Standard expansion has NOT been kicked off. 6-8 wks lead time."
+- SVC-3411 (servicing scripts for Standard) is already Blocked waiting
+  on this.
+- Your plan-it decisions log doesn't mention UDAAP at all. This is the
+  #1 schedule killer and nobody on your team owns it.
+
+### 2. Biometric step-up is a 3-team collision course on the legacy library
+- PLAN-1925 (your team): biometric step-up for >$1000 plans — In Progress.
+- MOBILE-3501 (Aiko's team): FaceID in FlexPay mobile flow, using the
+  legacy biometric shared lib — decision made in April without consulting
+  auth-platform.
+- AUTH-455 (Hiroshi): centralized biometric service rewrite, ETA Q3,
+  explicitly deprecates the legacy shared lib mobile is building on.
+- FRAUD-1120 (Dana): needs the biometric signal too. You're stacking
+  three integrations on a library that's being deleted this quarter.
+
+### 3. Server-side eligibility migration is unfunded and on the critical path
+- PLAN-1893 is reopened, Marcus says it's 4 sprints and "need to find
+  capacity." Reporter is Aiko Tanaka (mobile) — meaning mobile needs
+  this server-side before they can ship cleanly.
+
+## Talk to these people TODAY
+
+| Person | Why | Topic |
+|---|---|---|
+| Brett Holloway (compliance-eng) | UDAAP not started | Kick off COMP-2026-44 this week |
+| Hiroshi Sato (auth-platform) | AUTH-455 deprecates the lib MOBILE-3501 + PLAN-1925 are building on | Decide: wait for AUTH-455 or ship on legacy and re-platform |
+| Aiko Tanaka (mobile-platform) | MOBILE-3501 + reporter on PLAN-1893 | Align biometric integration path + eligibility migration capacity |
+
+## The One Warning
+
+If you don't kick off the UDAAP review this week, FlexPay Standard ships
+Q4, not Q3.
+```
+
+See `03_cross_team/captured_output.md` for the full output.
+
+## Eval coverage
+
+`evals/golden/cross-team.yaml` — 2 cases. The judge specifically checks
+that the agent:
+
+- Names **specific people** as the action owners, not just teams.
+- Identifies the UDAAP gate as the schedule-defining constraint.
+- Catches the second-order overlap on the deprecated biometric library
+  (PLAN-1925 + MOBILE-3501 + AUTH-455 + FRAUD-1120 stacking on a lib
+  that's about to be deleted).
+
+That last one is the whole point of the workflow — it's the kind of thing
+that's impossible for any one person on any one team to see from their
+seat.

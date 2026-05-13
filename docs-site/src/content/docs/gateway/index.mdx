@@ -1,0 +1,101 @@
+---
+title: MCP gateway
+description: A single HTTP front-door that proxies JSON-RPC to the four backend MCP servers. Auth, ACL, rate limits, and audit log.
+---
+
+import { CardGrid, Card, LinkCard, Aside } from "@astrojs/starlight/components";
+
+**Source:** `mcp_gateway/gateway.ts`
+
+A single front-door HTTP server that proxies JSON-RPC requests through to
+the four backend MCP servers. Provides the three things every enterprise
+fintech deployment requires:
+
+<CardGrid>
+  <Card title="Auth" icon="lock-closed">
+    Bearer-token validation against a user allowlist (`users.json`).
+    Production upgrade path: replace `loadUsers()` + `authenticate()`
+    with a JWT validator hitting your IdP's JWKS endpoint. The downstream
+    interface stays the same.
+  </Card>
+  <Card title="Rate limits" icon="setting">
+    Per-user fixed-window counter (1-minute window) plus per-server ACLs.
+    Production: swap the in-memory `Map` for Redis + a sliding window.
+  </Card>
+  <Card title="Audit" icon="document">
+    Every authenticated request emits a structured JSONL event to
+    `audit_logs/audit-YYYY-MM-DD.jsonl`. SOX / SR 11-7 / GLBA-compatible
+    schema — see [Audit log](/enterprise-tooling/gateway/audit-log/).
+  </Card>
+</CardGrid>
+
+## Wire format
+
+Standard JSON-RPC over HTTP POST to `/v1/mcp/{server_name}`. Body is the
+same MCP request you'd send to the server over stdio. Headers:
+
+```
+Authorization: Bearer <token>
+Content-Type: application/json
+```
+
+Probes:
+
+```
+GET /healthz   → { "status": "ok" }
+```
+
+## Run
+
+```bash
+cp mcp_gateway/users.example.json mcp_gateway/users.json
+# fill in tokens
+npx tsx mcp_gateway/gateway.ts
+```
+
+The gateway listens on `PORT` (default `8765`). Each request spawns the
+appropriate backend server, sends the request via stdio, returns the
+response. In production you'd keep persistent connections in a pool —
+see the comments in `forwardToBackend` for the upgrade path.
+
+## What's covered
+
+<CardGrid>
+  <LinkCard
+    title="Auth"
+    description="Bearer-token validation, users.json shape, JWT upgrade path."
+    href="/enterprise-tooling/gateway/auth/"
+  />
+  <LinkCard
+    title="Audit log"
+    description="SOX-compatible event schema, rotation, sample jq queries, production hardening."
+    href="/enterprise-tooling/gateway/audit-log/"
+  />
+</CardGrid>
+
+## Why a gateway
+
+The four MCP servers are stdio binaries — fine for local Claude Code use.
+Once you want multiple engineers + teams sharing the same MCP collection,
+you need:
+
+- **Authentication.** Who is calling? What team are they on?
+- **Per-server access control.** Should the `eng-platform` team have
+  access to the `pm-memory` server? Should QA?
+- **Per-user rate limiting.** Stop runaway loops from eating the upstream
+  quota.
+- **Audit.** Mandatory for SOX / SR 11-7 / GLBA — you must be able to
+  produce a record of *who called what tool when* for an auditor.
+- **Cost governance.** Bound per-user / per-team / per-server spend.
+
+The gateway centralizes all of that in front of the existing servers.
+The servers don't change; they continue to speak MCP over stdio. The
+gateway speaks HTTP-MCP outward and stdio-MCP inward.
+
+<Aside type="note">
+This is a sketch, not a production binary. The pieces that need to be
+swapped in before deploying at scale are explicitly called out in the
+file's header comment: persistent backend connection pool, JWT auth
+against your IdP, Redis-backed rate limit, WORM audit-log sink. The
+shape is right; the implementation is illustrative.
+</Aside>

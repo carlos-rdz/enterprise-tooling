@@ -1,0 +1,36 @@
+# Eval cases for the cross-team-integrator agent.
+#
+# The team_data corpus is designed with one deliberate hidden landmine:
+# the FlexPay product team, mobile-platform, fraud-risk, and auth-platform
+# are all making Q3 biometric decisions in isolation. auth-platform is
+# deprecating the legacy biometric shared library that mobile-platform
+# is racing to integrate with. The agent should find this.
+
+cases:
+  - id: q3_expansion_cross_team_risk
+    description: >
+      Lead is asking what cross-team risks they should worry about. The
+      single most important answer is the biometric collision: FlexPay,
+      mobile, auth, and fraud all touching biometric in Q3 with no shared
+      architecture. UDAAP-not-started is the second-most-important.
+    question: "I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?"
+    must_have:
+      - "Surfaces the biometric collision involving 3 or more of: plan-it, mobile-platform, auth-platform, fraud-risk."
+      - "Specifically notes that auth-platform is deprecating the legacy biometric shared library mobile-platform is building against."
+      - "Surfaces UDAAP review not being started (COMP-2026-44) as a critical-path risk."
+      - "Names specific owners to contact today (e.g. Hiroshi Sato for auth, Aiko Tanaka for mobile, Brett Holloway for UDAAP)."
+      - "Provides a single 'biggest warning' framed as 'align this week or ship slips'."
+    must_not_have:
+      - "Generic 'coordinate with other teams' advice with no specific overlaps named."
+      - "Misses the biometric collision entirely."
+
+  - id: biometric_specific
+    description: >
+      Direct question about biometric. Should immediately surface the
+      multi-team collision, not just one team's biometric work.
+    question: "Who else is touching biometric auth right now?"
+    must_have:
+      - "Names at least three teams from: plan-it (PLAN-1925), mobile-platform (MOBILE-3501), auth-platform (AUTH-455), fraud-risk (FRAUD-1120)."
+      - "Notes the architectural collision: auth-platform's centralized service ETA Q3 vs mobile-platform's inline integration with the legacy library."
+    must_not_have:
+      - "Reports only one team's biometric work as if no others exist."

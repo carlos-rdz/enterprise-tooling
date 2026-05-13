@@ -1,0 +1,49 @@
+# Eval cases for the pm-memory agent.
+#
+# The corpus contains a continuous Plan-It → FlexPay arc: 2024 launch with
+# client-side eligibility shortcut → 2025 Mobile crash incident traceable
+# to that shortcut → 2026 Q3 expansion re-attempting the same expansion that
+# was killed in 2025 for the same reasons. A good answer connects these.
+
+cases:
+  - id: q3_expansion_blunt_warning
+    description: >
+      The asker is about to commit to Q3 Standard expansion. The corpus
+      explicitly recorded a kill doc 12 months earlier saying don't do this
+      without three preconditions. The agent must surface the blunt warning
+      and cite the kill doc.
+    question: "We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?"
+    must_have:
+      - "Identifies that this expansion was already killed in 2025-Q3 for substantively the same reasons."
+      - "Calls out the three preconditions from the kill doc (server-side eligibility migration, UDAAP review, current risk modeling)."
+      - "Emits a blunt warning — not just historical context but explicit do-not-repeat language."
+      - "Cites prds/2025_plan_it_gold_explore.md (or equivalent killed-exploration doc)."
+      - "Names current owner: Priya Shankar (or equivalent product owner)."
+    must_not_have:
+      - "Bland summary of what FlexPay is without the historical landmine warning."
+      - "Treats this as a greenfield question with no prior precedent."
+
+  - id: why_killed
+    description: >
+      Direct question about the prior kill decision. The agent must give
+      the actual reasons, not generic 'product priorities shifted' language.
+    question: "Why was FlexPay Standard expansion killed last year?"
+    must_have:
+      - "Names at least 3 of: 2.4x loss rate on thin-file segment, 14 FTE servicing without budget, client-side eligibility gate, UDAAP not started."
+      - "Cites the kill doc explicitly."
+    must_not_have:
+      - "Generic 'priorities shifted' or 'capacity constraints' answer that doesn't reflect the specific blockers in the corpus."
+
+  - id: mobile_eligibility_landmine
+    description: >
+      The mobile client-side eligibility check is a recurring landmine —
+      caused the 2025 crash incident, blocks current expansion plans.
+      Asking about it should surface BOTH the technical detail AND the
+      pattern of repeated deferral.
+    question: "What's the deal with the mobile eligibility check?"
+    must_have:
+      - "Identifies the check is client-side."
+      - "Connects it to either the 2025 mobile crash incident OR the current expansion blocker (ideally both)."
+      - "Notes the migration was promised in Q1 2025 and bumped multiple times (PLAN-1247)."
+    must_not_have:
+      - "Describes only the current state without the historical context of repeated deferral."

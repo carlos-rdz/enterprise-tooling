@@ -145,7 +145,13 @@ def render(analysis: MeetingAnalysis) -> str:
 
 
 def main() -> int:
-    transcript_path = Path(__file__).parent / "transcript.md"
+    override = os.environ.get("MEETING_TRANSCRIPT_PATH_OVERRIDE")
+    if override:
+        transcript_path = Path(override)
+    elif len(sys.argv) > 1:
+        transcript_path = Path(sys.argv[1])
+    else:
+        transcript_path = Path(__file__).parent / "transcript.md"
     if not transcript_path.exists():
         print(f"missing {transcript_path}", file=sys.stderr)
         return 1

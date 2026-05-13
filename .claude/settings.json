@@ -1,5 +1,5 @@
 {
-  "$comment": "Project-level Claude Code settings. The hook below demonstrates auto-triggering a skill when a meeting transcript lands on disk — exactly the kind of ambient workflow we want every engineer to have without thinking about it.",
+  "$comment": "Project-level Claude Code settings. Two hooks: (1) PostToolUse — when a transcript-shaped .md is written, suggest invoking the meeting-killer skill. (2) PreToolUse — gate write operations against the jira MCP server unless DRY_RUN=true.",
   "hooks": {
     "PostToolUse": [
       {
@@ -8,6 +8,17 @@
           {
             "type": "command",
             "command": "node -e \"let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const e=JSON.parse(s);const p=e.tool_input&&e.tool_input.file_path||'';if(/transcript.*\\\\.md$/i.test(p)){console.log(JSON.stringify({hookSpecificOutput:{hookEventName:'PostToolUse',additionalContext:'Transcript detected at '+p+' — invoke the meeting-killer skill or /meeting-killer slash command to extract action items.'}}));}}catch(_){}})\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "mcp__jira__jira_create_issue|mcp__jira__jira_add_comment",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gate-jira-writes.mjs"
           }
         ]
       }

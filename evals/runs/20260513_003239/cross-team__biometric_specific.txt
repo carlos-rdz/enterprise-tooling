@@ -1,0 +1,32 @@
+======================================================================
+Q: Who else is touching biometric auth right now?
+======================================================================
+
+Four teams are touching biometric auth simultaneously, and they are **not aligned**. Here's the picture:
+
+## Who's touching it
+
+| Team | What they're doing | Approach |
+|---|---|---|
+| **auth-platform** (Hiroshi Sato) | AUTH-455: Re-architecting biometric into a **centralized service**, killing the shared library. ETA Q3. | New service |
+| **mobile-platform** (Aiko Tanaka) | MOBILE-3501: Biometric step-up for FlexPay transactions. **Decided in April to embed inline using the legacy shared library — without consulting auth-platform.** | Legacy lib (being deprecated) |
+| **plan-it** (Priya owns) | PLAN-1925: Biometric step-up on plan creation >$1000. Decision in May to "coordinate with mobile-platform." | Following mobile = also legacy lib |
+| **fraud-risk** (Dana Liu) | Wants biometric signals piped into risk decisioning. "Conversations started, no formal alignment." | Consumer, no contract |
+| **compliance-engineering** | COMP-2026-51: Privacy review for behavioral biometrics expansion. | Gate |
+
+## The 3 critical hidden problems
+
+1. **Mobile and plan-it are building on a library auth-platform is actively deleting.** Aiko's team chose inline calls to the legacy shared lib in April without looping in Hiroshi. Priya then decided to follow mobile's pattern. Both will need a rewrite mid-flight when AUTH-455 lands in Q3 — or auth-platform will be forced to keep the legacy lib alive past Q3, blowing their roadmap.
+2. **Fraud-risk has no contract for biometric signals.** Dana needs biometric attestation data for FRAUD-1120 step-up v2, but the data shape will change when the service replaces the library. If they build against the library, they re-do it. If they wait, FRAUD-1120 slips.
+3. **Compliance hasn't cleared behavioral biometrics expansion yet** (COMP-2026-51). Anything that ships before that review can be yanked. Nobody listed above is referencing this ticket.
+
+## Talk to these people TODAY
+
+- **Hiroshi Sato (auth-platform)** — get the AUTH-455 service interface and timeline. Find out if he can pull it left or expose a stable façade for current consumers.
+- **Aiko Tanaka (mobile-platform)** — her April decision is the root cause; she needs to either (a) refactor MOBILE-3501 to call the new service or (b) own keeping the legacy lib alive.
+- **Priya (plan-it, PLAN-1925)** — stop her from cementing the mobile pattern before the auth-platform conversation happens.
+- **Dana Liu (fraud-risk)** — co-design the biometric signal contract with Hiroshi now, not after AUTH-455 ships.
+
+## 🚨 The Q4-not-Q3 warning
+
+**If you don't get Hiroshi, Aiko, and Priya in a room this week to pick ONE biometric integration pattern, AUTH-455 will be forced to maintain the legacy shared library indefinitely, mobile and plan-it will ship code they have to rewrite, and fraud-risk's step-up v2 will have no signal contract. That's a Q4 slip for at least two of the four workstreams.**

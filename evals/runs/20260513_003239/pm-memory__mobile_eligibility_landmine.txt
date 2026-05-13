@@ -1,0 +1,33 @@
+======================================================================
+Q: What's the deal with the mobile eligibility check?
+======================================================================
+
+FlexPay's eligibility check has been client-side in the mobile app since launch in 2024 — a known shortcut taken under sprint pressure (ADR-0042). It's been flagged as tech debt three times, bumped three times, and is currently the single biggest blocker to expanding FlexPay beyond Premier. It's also the reason customers see the FlexPay entry point and then get a 'not eligible' error after tapping.
+
+⚠ WARNING
+If you're asking because you're scoping Q3 Standard expansion: stop. The killed-exploration doc lists three gates (server-side eligibility, UDAAP, risk model). Right now zero of three are done — PLAN-1893 has no eng, COMP-2026-44 is not started (6-8 week clock), RISK-1102 is mid-pull with wide CIs expected on thin-file 18-24s. Committing to Q3 ship today repeats S. Kowalski's exact 2024 mistake and the postmortem author has already pre-written your incident.
+
+CONTEXT YOU NEED
+The 2024 launch PRD explicitly called out the client-side check as known tech debt to be fixed in Q1 2025. It didn't ship. Marcus Webb filed PLAN-1247 to move it server-side, got bumped first for Standard expansion exploration, then again for fraud signup friction, and was finally closed Won't Do in Sept 2025 by Priya. It's now reopened as PLAN-1893 (April 2026), tied to Wendell's Q3 expansion commitment. The Standard expansion exploration was killed in Q3 2025 partly because of this — without server-side eligibility, any tier expansion requires forcing an app update on the entire base or shipping a fundamentally broken UX to non-eligible tiers.
+
+WHAT'S BEEN TRIED
+  • 2024-Q2: Shipped client-side as launch compromise (ADR-0042) — promised Q1 2025 fix
+  • 2025-Q1: Bumped for Standard expansion PM bandwidth
+  • 2025-Q4: Bumped for fraud signup friction work
+  • 2025-09: PLAN-1247 closed Won't Do by Priya
+  • 2026-04: Refiled as PLAN-1893, sized at 4 sprints, still hunting eng capacity
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. PLAN-1893 (the server-side migration) is on her plate but unassigned to engineering — Aiko Tanaka filed it. No eng capacity allocated as of May 2026.
+
+OPEN RISKS
+  • PLAN-1893 sized at 4 sprints with no eng capacity assigned — same pattern that killed PLAN-1247 three times
+  • Standard expansion in Q3 2026 is not real until this lands. The killed-exploration doc explicitly lists this as gate #1 of 3 (the others: UDAAP kickoff COMP-2026-44 not started, risk model refresh RISK-1102 in progress with wide CIs expected)
+  • Customer-facing bug MOBILE-3201 (entry point shown to ineligible users, then fails post-tap) was filed and never fixed — driving negative VOC and direct comparison to Affirm
+  • Pattern risk: the UIWebView tech debt from the same 2024 PRD became a P0 crash incident in Oct 2025. The eligibility check is the next ADR-0042 item on the clock — the mobile postmortem author flagged it explicitly as 'next year's incident'
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

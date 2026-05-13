@@ -15,7 +15,7 @@ __pycache__/
 
 # Node
 node_modules/
-package-lock.json
+# package-lock.json is checked in so `npm ci` works in CI
 
 # Editor
 .DS_Store

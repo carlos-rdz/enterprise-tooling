@@ -17,22 +17,26 @@ Both call `claude-opus-4-7` with adaptive thinking. The productized form isn't s
 
 ## Tool-surface coverage matrix
 
-| Component | Demo 1: Meeting Killer | Demo 2: PM Memory | Demo 3: Cross-Team | Where it lives |
-|---|---|---|---|---|
-| **Skill** | `meeting-killer` | `pm-memory` | `cross-team` | `.claude/skills/*/SKILL.md` |
-| **Slash command** | `/meeting-killer` | `/pm-memory` | `/cross-team` | `.claude/commands/*.md` |
-| **Subagent** | — | `pm-historian` | `cross-team-integrator` | `.claude/agents/*.md` |
-| **MCP server (local data)** | — | `pm-memory` | `team-registry` | `mcp_servers/*/server.ts` |
-| **MCP server (live API)** | `slack` + `jira` (for posting followups, creating tickets) | `slack` + `jira` (live ticket state + recent conversation) | `slack` + `jira` (live ticket state + recent conversation) | `mcp_servers/{slack,jira}/server.ts` |
-| **Hook** | `PostToolUse` on `Write` → transcript detection | — | — | `.claude/settings.json` |
-| **Plugin manifest** | bundles all three | bundles all three | bundles all three | `.claude-plugin/plugin.json` |
-| **Adaptive thinking** | ✓ | ✓ | ✓ | model param |
-| **Structured outputs (Pydantic)** | ✓ (raw form) | ✓ (raw form) | — | `*/agent.py` |
-| **Tool-use loop** | — | via subagent | ✓ (raw form, manual) | `03_cross_team/agent.py` |
-| **Prompt caching** | — | ✓ (raw form, on corpus) | — | `02_pm_memory/agent.py` |
-| **Real API integration** | Slack + Jira writes | Slack + Jira reads | Slack + Jira reads | env-gated, with synthetic fallback |
+| Component | 1: Meeting Killer | 2: PM Memory | 3: Cross-Team | 4: Oncall Companion | Where it lives |
+|---|---|---|---|---|---|
+| **Skill** | `meeting-killer` | `pm-memory` | `cross-team` | `oncall-companion` | `.claude/skills/*/SKILL.md` |
+| **Slash command** | `/meeting-killer` | `/pm-memory` | `/cross-team` | `/oncall` | `.claude/commands/*.md` |
+| **Subagent** | — | `pm-historian` | `cross-team-integrator` | `oncall-companion` | `.claude/agents/*.md` |
+| **MCP server (local data)** | — | `pm-memory` | `team-registry` | — | `mcp_servers/*/server.ts` |
+| **MCP server (live API)** | `slack` + `jira` (writes) | `slack` + `jira` (reads) | `slack` + `jira` (reads) | `slack` + `jira` (reads) | `mcp_servers/{slack,jira}/server.ts` |
+| **Hook (PostToolUse)** | transcript-detection on `Write` | — | — | — | `.claude/settings.json` |
+| **Hook (PreToolUse)** | Jira write gate | Jira write gate | Jira write gate | Jira write gate | `.claude/hooks/gate-jira-writes.mjs` |
+| **Plugin manifest** | bundled | bundled | bundled | bundled | `.claude-plugin/plugin.json` |
+| **Adaptive thinking** | ✓ | ✓ | ✓ | ✓ | model param |
+| **Structured outputs (Pydantic)** | ✓ (raw form) | ✓ (raw form) | — | — | `*/agent.py` |
+| **Manual tool-use loop** | — | via subagent | ✓ (raw form) | — | `03_cross_team/agent.py` |
+| **SDK tool runner (`run_tools().until_done()`)** | — | — | — | ✓ (raw form) | `04_oncall_companion/agent.py` |
+| **Memory tool (`BetaAbstractMemoryTool`)** | — | — | — | ✓ (raw form, filesystem-backed) | `04_oncall_companion/agent.py` |
+| **Prompt caching** | — | ✓ (raw form, on corpus) | — | — | `02_pm_memory/agent.py` |
+| **Real API integration** | Slack + Jira writes | Slack + Jira reads | Slack + Jira reads | Slack + Jira reads | env-gated, synthetic fallback |
+| **Eval coverage** | 1 case | 3 cases | 2 cases | — (next pass) | `evals/golden/*.yaml` |
 
-Combined, these workflows exercise most of the public Claude Code + Claude API surface: skills, slash commands, subagents, MCP servers (TypeScript SDK, both local-data and live-API patterns), hooks, plugin bundling, adaptive thinking, structured outputs, manual tool use, prompt caching, settings.json configuration, and live integration with external SaaS APIs (Slack, Jira Cloud).
+Combined, these workflows exercise substantially the full public Claude Code + Claude API surface: skills, slash commands, subagents, MCP servers (TS SDK with both local-data and live-API patterns), PostToolUse + PreToolUse hooks, plugin bundling, adaptive thinking, structured outputs, manual tool-use loops, the SDK tool runner, the memory tool, prompt caching, settings.json + .mcp.json configuration, live integration with external SaaS APIs, and an LLM-judge eval harness gating the whole thing.
 
 ---
 
@@ -75,6 +79,17 @@ Combined, these workflows exercise most of the public Claude Code + Claude API s
               ┌─────────────────────────────┐
    shipping   │   plugin.json               │ ←─ one installable bundle
               │   (.claude-plugin/)         │    distributable to every engineer
+              └─────────────────────────────┘
+
+              ┌─────────────────────────────┐
+   quality    │   evals/                    │ ←─ golden YAML rubrics +
+   gate       │   golden/*.yaml + run.py    │    LLM judge (Opus 4.7)
+              │                             │    eval-gates prompt/model changes
+              └─────────────────────────────┘
+
+              ┌─────────────────────────────┐
+   CI         │   .github/workflows/ci.yml  │ ←─ typecheck + MCP smoke +
+              │                             │    Python compile + hook tests
               └─────────────────────────────┘
 ```
 

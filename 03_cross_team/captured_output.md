@@ -2,39 +2,41 @@
 Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
 ======================================================================
 
-# FlexPay Q3 Standard — Cross-Team Risk Brief
+# FlexPay Q3 Standard Expansion — Cross-Team Risk Report
 
-You have **at least three teams making Q3-impacting decisions about your product**, and they're not converging. Here's what I found:
+I dug across team-registry, Jira, and Slack. You have a real mess brewing. Here's the unvarnished read.
 
-## 🔥 Critical hidden dependencies / overlaps
+## 🔴 The 3 Critical Hidden Dependencies
 
-**1. Biometric step-up is a three-way collision in flight.**
-- Your team (PLAN-1925) is adding biometric step-up for >$1000 plan creation.
-- mobile-platform (MOBILE-3501) is integrating FaceID *inline* in the FlexPay mobile flow using the **legacy biometric shared library**, and they explicitly decided this in April **without consulting auth-platform**.
-- auth-platform (AUTH-455) is **re-architecting biometric into a centralized service, ETA Q3** — i.e., deprecating the library Mobile just built against.
-- fraud-risk (FRAUD-1120) wants the biometric signal piped into Step-Up Auth v2 for risk decisioning, and Dana notes **"no formal alignment yet"** with auth-platform.
-- Net: you have four teams converging on biometric in the same quarter with zero shared architecture. Whoever ships first dictates the contract — and right now Mobile is racing toward a path that breaks on Hiroshi's cutover.
+### 1. UDAAP review hasn't started — and it's a 6–8 week gate
+- **COMP-2026-44** (UDAAP review for FlexPay Standard) is **Not Started** in Jira.
+- Brett Holloway posted in #flexpay-xfn: *"Reminder UDAAP review for Standard expansion has NOT been kicked off. 6-8 wks lead time."*
+- **SVC-3411** (servicing scripts for Standard) is already **Blocked** waiting on this.
+- Your plan-it decisions log doesn't mention UDAAP at all. This is the #1 schedule killer and nobody on your team owns it.
 
-**2. UDAAP review for FlexPay Standard has not started (COMP-2026-44).**
-- Brett's team has it on the sprint as "not started."
-- Servicing's SVC-3411 (Standard agent scripts) is explicitly **blocked on UDAAP outcome**.
-- UDAAP reviews for new lending behavior have multi-month lead times. This is the single most likely cause of a Q3→Q4 slip.
+### 2. Biometric step-up is a 3-team collision course on the legacy library
+- **PLAN-1925** (your team): biometric step-up for >$1000 plans — In Progress.
+- **MOBILE-3501** (Aiko's team): FaceID in FlexPay mobile flow, **using the legacy biometric shared lib** — decision made in April **without consulting auth-platform**.
+- **AUTH-455** (Hiroshi): centralized biometric service rewrite, ETA Q3, **explicitly deprecates the legacy shared lib mobile is building on**.
+- **FRAUD-1120** (Dana): needs the biometric signal too; fraud-risk's own notes say *"No formal alignment yet"* with auth-platform.
+- Priya logged "coordinate with mobile-platform on biometric" — but the actual collision is with **auth-platform**, who she hasn't looped in. You're stacking three integrations on a library that's being deleted this quarter.
 
-**3. The 18-24 delinquency model (RISK-1102) is your underwriting backbone — and it needs SR 11-7 sign-off you don't own.**
-- fraud-risk is building it; compliance-engineering (COMP-2026-58) owns the model-risk doc. Model-risk approval is not optional for a credit product expansion. If this isn't scheduled with model risk this week, your underwriting story doesn't exist at launch.
+### 3. Server-side eligibility migration is unfunded and on the critical path
+- **PLAN-1893** (server-side eligibility) is **reopened**, Marcus says it's 4 sprints and *"need to find capacity."*
+- Notably the reporter is **Aiko Tanaka** (mobile) — meaning mobile needs this server-side before they can ship cleanly. If you launch Standard without it, you're shipping eligibility logic on the client for a brand-new regulated segment. Auditors will love that.
 
-**Bonus drag:** Tomás (servicing) already flagged finance that Standard adds **14 FTE** based on his call-volume projection. If that headcount isn't approved, AHT (already 8.2 min vs. 4.1 target) explodes the day Standard launches and execs will blame the product, not staffing.
+## 👥 Talk to these people TODAY
 
-## 📞 People to talk to TODAY
-
-| Who | Team | Why |
+| Person | Why | Topic |
 |---|---|---|
-| **Hiroshi Sato** | auth-platform | Lock the biometric integration contract before Mobile cements the legacy path. Get AUTH-455 timeline pinned against your Q3 date. |
-| **Aiko Tanaka** | mobile-platform | Stop MOBILE-3501 from hardening on the legacy library. Force the three-way with Hiroshi. |
-| **Brett Holloway** | compliance-engineering | Get COMP-2026-44 (UDAAP) and COMP-2026-58 (SR 11-7) **started this week**, with named reviewers and a deadline. |
-| **Dana Liu** | fraud-risk | Confirm RISK-1102 readiness and align on biometric signal consumption so FRAUD-1120 ↔ your flow share one definition. |
-| **Tomás Reyes** | servicing | Confirm the 14-FTE ask is moving with finance, and that scripts can be drafted in parallel with UDAAP (not after). |
+| **Brett Holloway** (compliance-eng) | UDAAP not started, blocks servicing | Kick off COMP-2026-44 *this week*, not next |
+| **Hiroshi Sato** (auth-platform) | AUTH-455 deprecates the lib MOBILE-3501 + PLAN-1925 are building on | Decide: do you wait for AUTH-455 or ship on legacy and re-platform? |
+| **Aiko Tanaka** (mobile-platform) | MOBILE-3501 + reporter on PLAN-1893 | Align biometric integration path + eligibility migration capacity |
+| **Tomás Reyes** (servicing) | Flagged **14 FTE** needed if call volume projection holds; SVC-3411 blocked | Confirm staffing plan with Wendell's finance team |
+| **Dana Liu** (fraud-risk) | RISK-1102 (18-24 delinquency model) is *the* model for Standard; FRAUD-1120 needs biometric signal | Lock model delivery date + biometric signal contract |
 
-## ⚠️ The one warning
+## ⚠️ The One Warning
 
-**If you do not get UDAAP review (COMP-2026-44) formally kicked off with a named reviewer and a date this week, FlexPay Standard ships in Q4, not Q3.** Everything else (biometric, model risk, staffing) is recoverable with engineering effort. Compliance lead time is not. It is currently "not started" and it gates Servicing's launch readiness directly.
+**If you don't kick off the UDAAP review this week, FlexPay Standard ships Q4, not Q3.** Six-to-eight weeks of lead time from a "Not Started" ticket in late May lands you at the edge of Q3 with zero slack — and that's assuming compliance has zero findings. Servicing scripts are already blocked behind it. Everything else (biometric, eligibility, model) is technically recoverable; UDAAP is not.
+
+Close second: get Priya and Hiroshi in a room about AUTH-455 before mobile finishes wiring up a deprecated library.

@@ -1,0 +1,35 @@
+======================================================================
+Q: We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?
+======================================================================
+
+Q3 is not real unless three gates close immediately: (1) server-side eligibility migration (4 sprints, not yet staffed), (2) UDAAP review for the new segment (6-8 weeks, not started), and (3) refreshed risk model for thin-file/younger segment (in progress, wide CIs expected). The 2025 exploration was killed for exactly these reasons, and none of them are resolved as of May 2026. Commit to Q3 only if you have eng capacity locked, Brett's UDAAP kickoff this week, and Sasha's risk read in hand — otherwise push to Q4 or later.
+
+⚠ WARNING
+You are about to recommit to a ship date that was already killed in 2025 for reasons that are STILL unresolved in May 2026. The kill memo from Kowalski exists precisely so the next PM (you) doesn't repeat this. Before you say yes to Q3 in any forum, get written confirmation on all three gates (eng capacity for PLAN-1893, UDAAP kickoff date from Brett, risk read date from Sasha). If any one of them slips, Q3 is not real — and 'we'll fix it later' on the mobile gate is exactly the pattern that produced the October 2025 P0 incident.
+
+CONTEXT YOU NEED
+FlexPay Standard expansion was explored and killed in Q3 2025 (S. Kowalski, before departure). The kill memo explicitly states any future expansion conversation MUST start with the three gates above. Separately, the original 2024 launch shipped with the eligibility check client-side as known tech debt (ADR-0042) — that debt has already caused one P0 incident (the iOS 18.2 UIWebView crash, Oct 2025) and the postmortem explicitly warns the eligibility-check migration is 'next year's incident.' Also note: FlexPay is currently working as a Premier retention hook (VOC-2026-01-77 — 'this is why I keep Premier'). Expanding to Standard may dilute that positioning; worth a conscious decision, not a default.
+
+WHAT'S BEEN TRIED
+  • 2024-09: PLAN-1247 filed to move eligibility server-side. Bumped twice (Standard exploration, then fraud friction work), closed Won't Do in 2025-09. Re-filed as PLAN-1893 in April 2026, still needs eng capacity.
+  • 2025-Q3: Standard expansion explored and killed. Reasons: 2.4x loss rate at same terms, 14 unfunded servicing FTE, client-side eligibility blocker, UDAAP not started.
+  • 2025-10: UIWebView tech debt in FlexPay flow became a P0 crash incident (MOBILE-3401). Hotfix shipped in 48h. Three other flows still have UIWebView (MOBILE-3402, open).
+  • Client-side eligibility is already causing customer-visible damage today: VOC-2025-11-403 — Standard members see the FlexPay button, tap it, get a generic 'not eligible' error, and churn-signal to competitors. MOBILE-3201 filed, never fixed. Shipping Standard expansion without fixing this means the same UX bug now hits a much larger population.
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. Aiko Tanaka owns the mobile eligibility migration (PLAN-1893). Brett Holloway owns UDAAP review (COMP-2026-44, not started). Sasha Pereira (under Dana Liu) owns the refreshed risk model (RISK-1102, in progress). Wendell apparently made the Q3 commitment externally — worth confirming what exactly was committed and to whom before you plan against it.
+
+OPEN RISKS
+  • Server-side eligibility migration (PLAN-1893) is 4 sprints and unstaffed. Without it, expansion requires a forced app update — which is a separate, ugly conversation with mobile and marketing.
+  • UDAAP review (COMP-2026-44) has not started. 6-8 weeks minimum. If it kicks off in May, you're looking at July clearance at best — leaves no margin for findings.
+  • Risk model refresh (RISK-1102) is expected to have wide confidence intervals on thin-file 18-24 segment. Loss-rate corridor approval from risk committee is not a foregone conclusion.
+  • Servicing capacity: prior projection was 14 incremental FTE, never funded. Confirm with Tomás Reyes whether that's still the number.
+  • Trust risk: financial-flow crashes create disproportionate trust damage (VOC-2025-10-29 — customer asked if they should switch cards). Other UIWebView flows are still unremediated (MOBILE-3402). A second incident during a Standard launch would be brand-damaging.
+  • Strategic risk: FlexPay is a Premier retention lever today. Expanding to Standard may be the right move, but it should be a deliberate trade-off, not a default — get a position from segment marketing before committing.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - prds/2025_fraud_signup_friction.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

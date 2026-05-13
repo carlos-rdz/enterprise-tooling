@@ -1,0 +1,40 @@
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: A 30-minute slot that ended in 4 minutes with zero discussion — this should not have been on the calendar.
+SYNC SCORE: 0/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Hiroshi Sato] Convert Weekly Architecture Office Hours to an on-demand / opt-in slot (e.g., Slack channel or 'office hours only if topics submitted 24h prior')
+   Due: Before next scheduled occurrence (2026-05-21)
+   Risk if missed: Continued recurring waste of four engineers' focus time every week — ~2 engineer-hours/week burned for no output.
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[?]     Hiroshi Sato — As the organizer/host he had to show up, but only to confirm there were no topics — a Slack poll would have accomplished the same thing.
+[CUT]   Aiko Tanaka — Contributed 'Nope.' No agenda items, no questions, no value exchanged.
+[CUT]   Dana Liu — Contributed 'Same.' Zero signal that synchronous presence was needed.
+[CUT]   Brett Holloway — Contributed 'All good here.' Could have replied to a thread in 5 seconds from their desk.
+
+----------------------------------------------------------------------
+STRUCTURAL OBSERVATIONS
+----------------------------------------------------------------------
+• Recurring meeting has no agenda gate — it fires whether or not there is anything to discuss.
+• No async fallback channel exists for the stated purpose (architecture questions), so the calendar slot is the default surface.
+• Four senior engineers were defaulted into a 30-minute hold with no pre-meeting check for topics — classic 'recurring invite outlives its purpose' pattern.
+• Host opened with 'Anyone have anything?' rather than a prepared agenda — confirms the meeting has no owner-driven content, only reactive content that may or may not exist.
+
+----------------------------------------------------------------------
+FOLLOWUP DRAFTS
+----------------------------------------------------------------------
+
+To: Hiroshi Sato
+Subject: Kill or restructure the Architecture Office Hours recurring
+
+Hiroshi — yesterday's office hours ran 4 minutes with no topics, and this is a recurring pattern worth addressing. Recommendation: switch the meeting to opt-in. Post an agenda-call in Slack 24 hours before each slot; if no one submits a topic, auto-cancel. Keeps the forum available for real architecture questions without burning ~2 engineer-hours/week of synchronous time across you, Aiko, Dana, and Brett. Can you make the calendar change before 2026-05-21?
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

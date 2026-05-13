@@ -1,0 +1,22 @@
+{
+  "number": 201,
+  "title": "Add servicing-side helper for cardmember lookup",
+  "author": "tomas.reyes",
+  "base": "main",
+  "head": "tomas/cm-lookup-helper",
+  "state": "open",
+  "labels": ["servicing"],
+  "description": "Small helper used by SVC-3411 and three other tickets. Pulls the cardmember by external id and returns their tier + active-product list. Backed by the existing cardmember-svc client.",
+  "planted_bug": {
+    "exists": true,
+    "kind": "null dereference",
+    "severity": "high",
+    "summary": "cardmember_svc.lookup() returns None for unknown ids; the code accesses .tier and .products on the result without a None check. Any unknown id crashes the caller."
+  },
+  "files": [
+    {
+      "path": "servicing/cm_helper.py",
+      "diff": "+from typing import Any\n+\n+from servicing.clients import cardmember_svc\n+\n+\n+def get_member_summary(external_id: str) -> dict[str, Any]:\n+    \"\"\"Return tier + active-product list for the given external id.\n+\n+    Used by SVC-3411 (Standard launch scripts) and FRAUD-1120 (existing-\n+    customer-relationship signal).\n+    \"\"\"\n+    member = cardmember_svc.lookup(external_id)\n+    return {\n+        \"tier\": member.tier,\n+        \"products\": [p.code for p in member.products if p.active],\n+    }\n"
+    }
+  ]
+}

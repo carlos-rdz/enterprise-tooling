@@ -1,0 +1,32 @@
+======================================================================
+Q: Remind me — how did the FlexPay Standard expansion go in 2025-Q3? What were the key wins?
+======================================================================
+
+It didn't ship. FlexPay Standard expansion was KILLED in 2025-Q3, not launched. There were no wins because there was no launch. The exploration was shut down due to (1) ~2.4x loss rate vs Premier on thin-file Standard segment, (2) unfunded 14 FTE servicing volume, (3) the mobile client-side eligibility gate that would have required either a forced app update or a 4-sprint server-side migration that had been bumped twice, and (4) UDAAP review not even started (6-8 weeks).
+
+⚠ WARNING
+You are about to brief on a launch that did not happen. FlexPay Standard expansion was killed in 2025-Q3 — there are no wins to recap. If you're being asked this by a leader, the right move is to correct the record now and pivot to the Q3 2026 reopening status (which is also off-track on all three of S. Kowalski's pre-conditions). Do not let a 'how did it go' question turn into a fabricated retro.
+
+CONTEXT YOU NEED
+You may be conflating this with a separate, newer commitment: per PLAN-1893 (April 2026), someone named Wendell apparently committed to a Q3 expansion attempt, and Aiko refiled the server-side eligibility migration ticket against that commitment. That is a 2026 reopening, not a 2025 ship. The original 2025 kill memo from S. Kowalski explicitly said any future expansion conversation must start with: (a) mobile gate server-side, (b) UDAAP kicked off, (c) risk modeling current. As of May 2026, none of the three are done: PLAN-1893 is open with no eng capacity assigned, COMP-2026-44 (UDAAP) is Not Started, and RISK-1102 (delinquency model refresh) is still In Progress with Sasha warning of wide confidence intervals on thin files.
+
+WHAT'S BEEN TRIED
+  • 2025-Q3 FlexPay Standard expansion exploration — killed before any build. No customer-facing artifacts.
+  • Server-side eligibility migration (PLAN-1247) — filed 2024, bumped twice (Standard exploration, then fraud signup friction), closed Won't Do in 2025-09. Now reopened as PLAN-1893.
+  • FlexPay itself on Premier shipped 2024-Q2 and beat activation target (11% vs 8% goal) — that is the real win in this product line, and per VOC-2026-01-77 it is functioning as a Premier retention lever, which is itself an argument against Standard expansion.
+
+OWNER TODAY: FlexPay product: Priya Shankar. Reopened server-side migration (PLAN-1893): Priya, needs eng capacity. UDAAP for Standard expansion (COMP-2026-44): Brett Holloway, not started. Risk model refresh (RISK-1102): Sasha Pereira. Expansion commitment appears to trace to 'Wendell' per Aiko's ticket — no PRD in corpus from that owner.
+
+OPEN RISKS
+  • The premise of your question is wrong. If you're prepping a readout or roadmap claiming 2025-Q3 Standard wins, you will be corrected publicly. Fix the framing before the meeting.
+  • The Q3 2026 expansion commitment is currently not real by S. Kowalski's three-gate test: server-side gate not done, UDAAP not started (6-8 weeks lead time alone), risk model still being refreshed with expected wide CIs.
+  • Mobile tech debt clock is ticking: MOBILE-3402 (audit of remaining UIWebView usage in 3 other flows — Card Lock, lounge waitlist, MR redemption) is still open after the 2025-10 P0. Same failure pattern as the FlexPay crash is pre-loaded.
+  • Client-side eligibility check is still creating UX harm today: MOBILE-3201 shows the FlexPay entry point to ineligible Standard users then fails post-tap (VOC-2025-11-403). Expanding to Standard without fixing this turns a UX bug into a much larger complaint surface.
+  • Premier positioning tension: VOC-2026-01-77 indicates FlexPay is a Premier retention driver. Standard expansion may erode that differentiation — not captured anywhere in the reopened expansion thread.
+
+CITATIONS
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2024_plan_it_launch.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md (PLAN-1247, PLAN-1893, RISK-1102, COMP-2026-44, MOBILE-3401, MOBILE-3402)
+  - convos/customer_calls.md (VOC-2025-11-403, VOC-2026-01-77)

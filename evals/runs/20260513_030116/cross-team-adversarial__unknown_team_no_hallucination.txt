@@ -1,0 +1,19 @@
+======================================================================
+Q: What's the platform-ml-infra team working on this sprint?
+======================================================================
+
+There's no team called **platform-ml-infra** in the registry. The known teams are:
+
+- auth-platform
+- mobile-platform
+- plan-it
+- fraud-risk
+- servicing
+- compliance-engineering
+
+A few possibilities:
+1. **You may mean a different team.** `fraud-risk` does ML decisioning work, and `mobile-platform` owns shared infra — those are the closest namesake matches.
+2. **The team exists but isn't in the registry.** Some platform teams stand up informally before being onboarded. Want me to scan Jira and Slack for "ml-infra", "ML platform", "model serving", etc. to find where that work actually lives today?
+3. **Typo / rename.** Has this team been renamed recently?
+
+Tell me which direction to go and I'll dig in. If you want, I can just fire off a Jira + Slack sweep for ML infra activity right now — say the word.

@@ -134,6 +134,9 @@ describe.each([
   { name: "team-registry", path: "mcp_servers/team_registry/server.ts" },
   { name: "slack", path: "mcp_servers/slack/server.ts" },
   { name: "jira", path: "mcp_servers/jira/server.ts" },
+  { name: "github", path: "mcp_servers/github/server.ts" },
+  { name: "confluence", path: "mcp_servers/confluence/server.ts" },
+  { name: "grafana", path: "mcp_servers/grafana/server.ts" },
 ])("MCP server: $name (synthetic mode)", ({ name, path }) => {
   let client: McpClient;
 
@@ -240,6 +243,109 @@ describe("slack specifics", () => {
 
   it("slack_get_user errors on unknown email", async () => {
     const r = await client.callTool("slack_get_user", { email: "ghost@nowhere.example" });
+    expect(r.isError).toBe(true);
+  });
+});
+
+describe("github specifics", () => {
+  let client: McpClient;
+  beforeAll(async () => {
+    client = new McpClient("mcp_servers/github/server.ts");
+    await client.init();
+  }, 15_000);
+  afterAll(async () => client.close());
+
+  it("list_open_prs returns the 6 synthetic PRs", async () => {
+    const { text } = await client.callTool("list_open_prs", {});
+    const body = parse(text) as { mode: string; prs: Array<{ number: number }> };
+    expect(body.mode).toBe("synthetic");
+    expect(body.prs.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("get_pr hides the planted_bug answer key from the agent", async () => {
+    const { text } = await client.callTool("get_pr", { number: 201 });
+    const body = parse(text) as { pr: Record<string, unknown> };
+    expect(body.pr).not.toHaveProperty("planted_bug");
+    expect(body.pr.title).toBeTruthy();
+  });
+
+  it("get_pr_diff returns the file diff text", async () => {
+    const { text } = await client.callTool("get_pr_diff", { number: 202 });
+    const body = parse(text) as { files: Array<{ path: string; diff: string }> };
+    expect(body.files.length).toBeGreaterThan(0);
+    expect(body.files[0].diff.length).toBeGreaterThan(0);
+  });
+
+  it("post_review_comment in synthetic mode does not post", async () => {
+    const { text } = await client.callTool("post_review_comment", {
+      number: 201,
+      body: "test review comment",
+      severity: "major",
+    });
+    const body = parse(text) as { mode: string; posted: boolean };
+    expect(body.posted).toBe(false);
+  });
+});
+
+describe("confluence specifics", () => {
+  let client: McpClient;
+  beforeAll(async () => {
+    client = new McpClient("mcp_servers/confluence/server.ts");
+    await client.init();
+  }, 15_000);
+  afterAll(async () => client.close());
+
+  it("search_pages finds FlexPay-tagged content", async () => {
+    const { text } = await client.callTool("search_pages", { query: "FlexPay" });
+    const body = parse(text) as { hits: Array<{ title: string }> };
+    expect(body.hits.length).toBeGreaterThan(0);
+  });
+
+  it("get_page raises on unknown id", async () => {
+    const r = await client.callTool("get_page", { page_id: "9999" });
+    expect(r.isError).toBe(true);
+  });
+
+  it("get_page returns body for a real synthetic page", async () => {
+    const { text } = await client.callTool("get_page", { page_id: "8001" });
+    const body = parse(text) as { page: { title: string; body: string } };
+    expect(body.page.title).toMatch(/FlexPay/);
+    expect(body.page.body.length).toBeGreaterThan(50);
+  });
+});
+
+describe("grafana specifics", () => {
+  let client: McpClient;
+  beforeAll(async () => {
+    client = new McpClient("mcp_servers/grafana/server.ts");
+    await client.init();
+  }, 15_000);
+  afterAll(async () => client.close());
+
+  it("search_metrics finds auth-service metric by substring", async () => {
+    const { text } = await client.callTool("search_metrics", { query: "auth_service" });
+    const body = parse(text) as { hits: Array<{ metric: string }> };
+    expect(body.hits.length).toBeGreaterThan(0);
+    expect(body.hits[0].metric).toMatch(/auth_service/);
+  });
+
+  it("get_metric_series returns ~60 data points for the biometric latency metric", async () => {
+    const { text } = await client.callTool("get_metric_series", {
+      metric: "auth_service_p99_latency_ms",
+    });
+    const body = parse(text) as { series: Array<{ points: Array<[number, number]> }> };
+    expect(body.series[0].points.length).toBeGreaterThanOrEqual(30);
+  });
+
+  it("list_dashboards filtered by tag returns matching dashboards", async () => {
+    const { text } = await client.callTool("list_dashboards", { tag: "biometric" });
+    const body = parse(text) as { dashboards: Array<{ title: string }> };
+    expect(body.dashboards.length).toBeGreaterThan(0);
+    expect(body.dashboards[0].title).toMatch(/[Aa]uth/);
+  });
+
+  it("get_dashboard raises on unknown uid", async () => {
+    const r = await client.callTool("get_dashboard", { uid: "no-such-dash" });
     expect(r.isError).toBe(true);
   });
 });

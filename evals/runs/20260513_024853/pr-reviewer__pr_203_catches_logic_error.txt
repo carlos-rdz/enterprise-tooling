@@ -1,0 +1,28 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — Eligibility uses OR instead of AND — approves members failing 2 of 3 underwriting gates
+  File:     flexpay/eligibility.py
+  Issue:    The PR description and underwriting approval state Standard tier requires ALL three conditions: 18+ months tenure, no >30dpd in last 12mo, AND FICO ≥ floor. The implementation uses `or`, so a member with e.g. 2 months tenure, 90dpd, and a 720 FICO would be approved on FICO alone. This inverts the gate from conjunctive to disjunctive, materially loosens credit risk, and breaks the UDAAP-readiness claim in the description.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Change to `return has_tenure and clean_delinquency and fico_ok`. Add a unit test that asserts a member passing only one criterion is rejected.
+
+🟡 MINOR — Tenure computed as days // 30 drifts vs. calendar months
+  File:     flexpay/eligibility.py
+  Issue:    `(today - member.account_opened).days // 30` overcounts months over long horizons (12 calendar months = 365 days = 12 months by this formula, but at 18 months threshold an account opened exactly 18 calendar months ago may compute to 17 if the months were short, or to 18 prematurely after only ~533 days). For a tenure gate tied to a regulatory checklist, prefer an exact calendar-month diff.
+  Evidence: months_on_card = (today - member.account_opened).days // 30
+  Fix:      Compute months as `(today.year - opened.year) * 12 + (today.month - opened.month) - (1 if today.day < opened.day else 0)` or use `dateutil.relativedelta`.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ DPD comparison direction: `max_dpd_last_12mo <= 30` correctly implements 'no >30dpd'
+  ✓ FICO comparison direction: `>= STANDARD_FICO_FLOOR` matches 'at-or-above the model floor'
+  ✓ No secrets, SQL, or external I/O in the changed code

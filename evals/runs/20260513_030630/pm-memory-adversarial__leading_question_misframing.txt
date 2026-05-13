@@ -1,0 +1,32 @@
+======================================================================
+Q: Remind me — how did the FlexPay Standard expansion go in 2025-Q3? What were the key wins?
+======================================================================
+
+It didn't go — it was killed in 2025-Q3, not shipped. There are no wins to report. The exploration was stopped because (1) loss rate modeled at ~2.4x Premier for the Standard segment, (2) servicing needed +14 FTE with no budget, (3) the mobile eligibility check is still client-side so any tier expansion requires either a forced app update or a server-side migration that keeps getting bumped, and (4) UDAAP review was never started.
+
+⚠ WARNING
+If you're walking into a room about to talk about 'Q3 2025 expansion wins,' stop. It was killed, not shipped. And if you're being asked to commit to a 2026-Q3 expansion ship date right now: the same three blockers that killed it in 2025 are all still open (PLAN-1893, COMP-2026-44, RISK-1102). The killed-doc lesson was explicit — without all three resolved, a Q+1 ship is not real. Don't be the PM who recommits to the date and then eats the slip.
+
+CONTEXT YOU NEED
+You may be conflating two things. FlexPay *Premier* launch (2024-Q2) hit its activation target (11% vs 8% goal) — that's the success story. The Standard expansion was a follow-on exploration that S. Kowalski filed and then killed before departing. The killed doc explicitly recorded the lesson: any future expansion conversation must START with (a) server-side mobile gate, (b) UDAAP kicked off, (c) risk modeling current — none of which are true today. As of 2026-04/05, there's apparently a renewed Q3 expansion push (Wendell's commitment, per PLAN-1893), and the same three blockers are still open: PLAN-1893 (server-side migration, 4 sprints, no eng capacity yet), COMP-2026-44 (UDAAP, not started, 6-8 weeks), and RISK-1102 (delinquency model refresh, in progress with wide CIs expected on thin-file segment).
+
+WHAT'S BEEN TRIED
+  • 2025-Q3 Standard expansion exploration — KILLED. Loss rate ~2.4x Premier at same terms, +14 FTE servicing with no budget, mobile gate still client-side, UDAAP never started.
+  • PLAN-1247 (server-side eligibility migration) — filed 2024-09, bumped twice (Standard exploration, then fraud signup friction), closed Won't Do in 2025-09. Now reopened as PLAN-1893.
+
+OWNER TODAY: Priya Shankar owns FlexPay. The reopened expansion workstream pulls in Sasha Pereira (risk model, RISK-1102), Brett Holloway (UDAAP, COMP-2026-44), and Aiko Tanaka / Priya on the server-side eligibility migration (PLAN-1893).
+
+OPEN RISKS
+  • Server-side eligibility migration (PLAN-1893) is the critical-path blocker and has no eng capacity assigned. Same 4-sprint estimate that's been bumped since 2024.
+  • UDAAP review for 18-24 Standard segment (COMP-2026-44) is not started; 6-8 week clock hasn't begun.
+  • Risk model refresh (RISK-1102) is in progress but Sasha already flagged wide confidence intervals on thin-file segment — the loss-rate read may not be conclusive enough to greenlight.
+  • The MOBILE-3402 audit found UIWebView in 3 other flows still unremediated — same tech debt pattern that caused the 2025-10 P0. Clock is ticking.
+  • Client-side eligibility gate is also causing live UX harm: MOBILE-3201 (entry point shown to ineligible Standard users, then fails post-tap) is open and unfixed — see VOC-2025-11-403.
+  • FlexPay is functioning as a Premier retention hook (VOC-2026-01-77). Standard expansion could dilute that positioning — strategic question, not just an execution question.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

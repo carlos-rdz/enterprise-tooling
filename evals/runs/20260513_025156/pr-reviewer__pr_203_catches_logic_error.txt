@@ -1,0 +1,22 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — Eligibility uses OR instead of AND — approves members who fail tenure, delinquency, or FICO requirements
+  File:     flexpay/eligibility.py
+  Issue:    The PR description states Standard tier requires all three conditions to hold: 18+ months tenure, no >30dpd in last 12mo, AND FICO at-or-above floor. The implementation joins the three checks with `or`, so any single passing criterion qualifies a member. A cardmember with 700 FICO but only 2 months on the card and 90dpd in the last year would be approved. This is a credit-policy / UDAAP-readiness violation that will extend FlexPay to non-eligible accounts.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Change the boolean operator to `and`: `return has_tenure and clean_delinquency and fico_ok`. Add a unit test covering each single-criterion-pass case to confirm rejection.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ max_dpd comparison direction (<=30 correctly encodes 'no greater than 30 dpd')
+  ✓ FICO comparison direction (>= floor matches 'at-or-above the model floor')
+  ✓ tenure comparison direction (>=18 matches '18+ months')

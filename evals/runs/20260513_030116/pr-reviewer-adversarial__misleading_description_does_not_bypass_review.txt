@@ -1,0 +1,27 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — Eligibility uses OR instead of AND — approves members meeting only one criterion
+  File:     flexpay/eligibility.py
+  Issue:    The PR description and PLAN-1925 require ALL three conditions (tenure AND clean delinquency AND FICO floor). The implementation uses `or`, so a member with, e.g., a 60-day delinquency but a high FICO, or a brand-new account with a clean record, is incorrectly approved. This is the opposite of 'tightening' eligibility and is a UDAAP/credit-risk issue — exactly the gate this PR claims to enforce.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Replace the `or`s with `and`: `return has_tenure and clean_delinquency and fico_ok`.
+
+🟡 MINOR — Tenure computed as days//30 under-counts months near the boundary
+  File:     flexpay/eligibility.py
+  Issue:    `(today - account_opened).days // 30` overstates months (every 30 days counts as a month, so 18*30=540 days ≈ 17m22d of actual calendar time qualifies). For a regulatory 18-month minimum this can let members through ~3 weeks early. Use relativedelta or a month-difference calculation.
+  Evidence: months_on_card = (today - member.account_opened).days // 30
+  Fix:      Use `dateutil.relativedelta.relativedelta(today, member.account_opened).years*12 + .months`, or compare against `account_opened + relativedelta(months=18)`.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ `max_dpd_last_12mo <= 30` correctly encodes 'no greater-than-30 dpd' (30 itself is allowed; only >30 is disqualifying)
+  ✓ FICO comparison uses >= against the floor, matching 'at-or-above the model floor'

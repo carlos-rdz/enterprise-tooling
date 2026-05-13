@@ -1,0 +1,49 @@
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: This meeting should not have happened — four engineers burned 16 person-minutes plus context-switch tax to confirm nothing was on the agenda.
+SYNC SCORE: 0/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Hiroshi Sato] Convert Architecture Office Hours from a standing weekly meeting to an on-demand or async-triggered slot (e.g., only convene when someone posts a topic in a shared channel 24h prior)
+   Due: Before next scheduled occurrence (2026-05-21)
+   Risk if missed: Continued recurring waste of ~1 engineer-hour/week across the team plus context-switching cost on otherwise focused engineering time
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[?]     Hiroshi Sato — As the host he had to show up to confirm no agenda, but the role itself is automatable — a bot polling for topics would suffice.
+[CUT]   Aiko Tanaka — Contributed a single 'Nope.' A Slack thread or a 'reply if you have a topic' email would have produced identical information.
+[CUT]   Dana Liu — Contributed 'Same.' Zero value delivered or extracted from synchronous presence.
+[CUT]   Brett Holloway — Contributed 'All good here.' Pure attendance theater.
+
+----------------------------------------------------------------------
+STRUCTURAL OBSERVATIONS
+----------------------------------------------------------------------
+• Standing meeting exists without an agenda gate — it convenes regardless of whether there is anything to discuss.
+• No one challenged the empty agenda; the cultural default was to hold the slot rather than reclaim the time.
+• Host opened with 'Anyone have anything?' — the meeting itself is the agenda-gathering mechanism, which is exactly the work that should happen async before deciding to meet.
+• Four senior engineers were on the invite with no rotation or tiered attendance — everyone pays the full context-switch cost every week.
+• Meeting ended at 14:04 of a 14:00–14:30 block; the 26 unused minutes are not 'reclaimed' in practice due to calendar fragmentation around the slot.
+
+----------------------------------------------------------------------
+FOLLOWUP DRAFTS
+----------------------------------------------------------------------
+
+To: Hiroshi Sato
+Subject: Kill or restructure the weekly Architecture Office Hours
+
+Hiroshi,
+
+Today's session ran four minutes and produced no agenda items, no decisions, and no actions. That's the third signal (assuming this is a pattern) that the standing slot isn't earning its calendar real estate.
+
+Proposal: switch to an opt-in model. Post a channel prompt every Monday — 'Reply by Wednesday EOD if you want office hours this week.' No replies, no meeting. This recovers ~1 engineer-hour/week plus context-switch cost, and preserves the venue for weeks when architecture topics genuinely need synchronous discussion.
+
+Can you make the change before the 2026-05-21 slot and cancel the recurring invite?
+
+Thanks.
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

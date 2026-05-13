@@ -1,0 +1,43 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Nightly snapshots overwrite the same S3 key, destroying history
+  File:     risk/snapshot.py
+  Issue:    The S3 object key is a constant `snapshots/{table}.csv` with no date/timestamp partition. Each nightly run overwrites the previous night's snapshot, so offline backtests (the stated use case in RISK-1102) cannot reproduce historical points in time — there is effectively only ever one snapshot retained.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a date (or run id) in the key, e.g. `snapshots/{run_date:%Y-%m-%d}/{table}.csv`, and optionally also write/update a `latest` pointer.
+
+🟠 MAJOR — Full-table fetchall() will OOM on large tables
+  File:     risk/snapshot.py
+  Issue:    `cursor.fetchall()` materializes the entire result set in memory before writing. For tables like `members` or `signups` in a feature store this is likely to be very large and will eventually crash the nightly job. Streaming via `fetchmany` / iterating the cursor and writing rows as they arrive is required.
+  Evidence: cursor.execute(f"SELECT * FROM {table}")
+        rows = cursor.fetchall()
+  Fix:      Iterate the cursor and stream rows: `for row in cursor: writer.writerow(row)` (or use `fetchmany(N)` in a loop), and consider `s3.upload_fileobj` with a streaming body.
+
+🟡 MINOR — DB cursor never closed (resource leak)
+  File:     risk/snapshot.py
+  Issue:    A new cursor is acquired per table in the loop but never closed/returned to the pool. On failure mid-loop the cursor leaks; even on success this can exhaust pool capacity over time. Use a context manager or explicit `cursor.close()` in a `finally`.
+  Evidence: cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Use `with db_pool.cursor() as cursor:` (if supported) or wrap in try/finally with `cursor.close()`.
+
+🟡 MINOR — CSV written without header row
+  File:     risk/snapshot.py
+  Issue:    Only `writer.writerows(rows)` is called — no column names are written. Downstream backtests have to hard-code column order, which silently breaks the day someone reorders columns or adds one in the middle. Write `cursor.description` as the first row.
+  Evidence: writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      After execute, do `writer.writerow([c[0] for c in cursor.description])` before writing rows.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ SQL injection: table names are interpolated via f-string but come from a hard-coded module-level allowlist, not user input — safe.
+  ✓ Secret material: no credentials are hard-coded; boto3 will use the ambient credential chain.
+  ✓ S3 bucket name leakage: `feature-store-snapshots` is a bucket identifier, not a secret.

@@ -1,0 +1,32 @@
+======================================================================
+Q: What's the deal with the mobile eligibility check?
+======================================================================
+
+FlexPay's eligibility check runs client-side in the mobile app — a known shortcut taken at 2024 launch under sprint pressure (ADR-0042). It was flagged as tech debt with a Q1 2025 fix promise that never shipped, and it is currently the single biggest gating item for any tier expansion. As of April 2026 it's been refiled as PLAN-1893, sized at 4 sprints, and still needs eng capacity.
+
+⚠ WARNING
+If you're asking this because someone is making a Q3 Standard-expansion commitment: that commitment is not real. Four sprints of unallocated eng work, UDAAP not started (6-8wk), and a delinquency model still being refreshed. The killed-exploration doc spells out the exact three preconditions and none of them are met. Don't be the PM who repeats S. Kowalski's 2024 sequencing mistake — and don't let this become the next UIWebView-style forced-migration incident.
+
+CONTEXT YOU NEED
+This is a recurring institutional landmine. The 2024 launch PRD explicitly called it out as known tech debt. PLAN-1247 was filed in Sept 2024 to migrate it server-side, then bumped three times (Standard exploration, fraud friction work, eventually closed in Sept 2025 by Priya as "refile when needed"). The 2025 Standard expansion exploration was killed in part because of this — the killed-doc lesson explicitly says any tier expansion conversation must START with confirming the gate is server-side. It also has a visible customer-facing symptom: MOBILE-3201 (UX bug, never fixed) where the app shows the FlexPay entry point to all tiers and only fails the check post-tap, generating negative VOC calls (e.g., VOC-2025-11-403) and direct comparisons to Affirm.
+
+WHAT'S BEEN TRIED
+  • 2024 launch: Shipped client-side as a deliberate shortcut, documented in ADR-0042.
+  • 2024-Q4 through 2025: PLAN-1247 filed to migrate server-side, bumped twice, closed Won't Do in Sept 2025.
+  • 2025-Q3: Standard expansion exploration killed — server-side migration was one of four blocking reasons.
+  • 2026-Q2: PLAN-1893 reopened by Aiko per Wendell's Q3 expansion commitment. Still 4 sprints, still no allocated capacity.
+
+OWNER TODAY: Priya Shankar owns FlexPay product. PLAN-1893 is open under her; engineering lead is Aiko Tanaka / Marcus Webb side. No assigned eng capacity yet.
+
+OPEN RISKS
+  • PLAN-1893 has no eng capacity assigned — Q3 expansion commitment is not real until staffed.
+  • MOBILE-3201 (the UX bug where Standard users see the entry point and get rejected) is still open and actively damaging brand vs. Affirm per VOC.
+  • Pattern risk: the 2024 UIWebView tech debt also had a "we'll fix in Q1 2025" promise and became a P0 incident (iOS 18.2 crash spike, postmortem 2025-10-22). The eligibility-check postmortem explicitly warns this is "next year's incident."
+  • Expansion gating items beyond this: COMP-2026-44 (UDAAP) not kicked off, 6-8 weeks; RISK-1102 (delinquency model refresh) in progress with expected wide CIs on thin-file segment.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

@@ -1,0 +1,22 @@
+======================================================================
+Q: What's the status of Project Atlas, and who's the current owner?
+======================================================================
+
+There is no reference to a 'Project Atlas' anywhere in the corpus I have access to — no PRD, exploration doc, postmortem, ticket, or call summary mentions it. I cannot tell you its status or owner without inventing information.
+
+⚠ WARNING
+Before you go further, confirm Atlas actually exists as a named project. Asking around about a project nobody can find a doc for is how PMs lose credibility in their first month. If it's a rename of FlexPay Standard expansion, use that name — the history matters and the landmines are documented.
+
+CONTEXT YOU NEED
+The corpus covers FlexPay (launch, killed Standard expansion, mobile crash postmortem), Digital Signup fraud friction reduction, and related tickets. If 'Atlas' is an internal codename for one of these workstreams, I'd need you to confirm — but no document uses that name. It's also possible Atlas lives in a different team's space that was never indexed here, or it's a name you heard secondhand that hasn't been formalized yet.
+
+WHAT'S BEEN TRIED
+  • Searched all PRDs, exploration docs, postmortems, ticket titles/comments, and customer call summaries for 'Atlas' — zero hits.
+
+OWNER TODAY: Unknown — not in the corpus.
+
+OPEN RISKS
+  • If someone told you Atlas is a live project and you act on that, you may be working off a hallway rumor or a renamed initiative. Get the actual doc link before committing roadmap time.
+  • If Atlas is a new codename for the FlexPay Standard expansion (which was killed in 2025-Q3 but appears to be reviving per PLAN-1893 and Wendell's Q3 expansion commitment), the relevant owner is Priya Shankar and there are three hard blockers: server-side eligibility migration (PLAN-1893, 4 sprints, no eng capacity yet), UDAAP review (COMP-2026-44, not started, 6-8 weeks), and the risk model refresh (RISK-1102, in progress with wide CIs expected).
+
+CITATIONS

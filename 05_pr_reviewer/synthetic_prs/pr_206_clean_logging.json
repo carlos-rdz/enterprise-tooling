@@ -1,0 +1,22 @@
+{
+  "number": 206,
+  "title": "Emit structured log when oncall pager is acked",
+  "author": "hiroshi.sato",
+  "base": "main",
+  "head": "hiroshi/pager-ack-log",
+  "state": "open",
+  "labels": ["observability"],
+  "description": "Adds one structured log line when the oncall ack endpoint is hit. Used by SRE to compute MTTA. No behavior change, no new dependency.",
+  "planted_bug": {
+    "exists": false,
+    "kind": null,
+    "severity": null,
+    "summary": "Clean observability change. A pr-reviewer that flags this as buggy is producing false positives."
+  },
+  "files": [
+    {
+      "path": "oncall/api.py",
+      "diff": "@@ -22,6 +22,7 @@\n def ack_page(page_id: str, actor: str) -> AckResult:\n     page = pager.get(page_id)\n     pager.set_ack(page_id, actor=actor)\n+    log.info(\"pager_ack\", extra={\"page_id\": page_id, \"actor\": actor})\n     return AckResult(page_id=page_id, acked_by=actor)\n"
+    }
+  ]
+}

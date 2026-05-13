@@ -1,0 +1,36 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+Here's what's actually happening across teams on FlexPay Q3 Standard. You have three landmines, all in motion right now.
+
+## The 3 critical hidden dependencies
+
+**1. UDAAP review hasn't started — and it's a 6-8 week long pole.**
+- COMP-2026-44 status: **Not Started**. Brett Holloway himself posted in `#flexpay-xfn`: "Reminder UDAAP review for Standard expansion has NOT been kicked off. 6-8 wks lead time."
+- This cascades: SVC-3411 (servicing scripts) is already **Blocked** on UDAAP. Tomás has also told finance the expansion needs **+14 FTE** in the contact center if volume projection holds — so servicing readiness is a sub-dependency on top of the legal one.
+- If UDAAP kicks off in May/June, you're landing approvals late August at best. Anything beyond that = Q4 ship.
+
+**2. The biometric stack is a three-way collision and nobody has reconciled it.**
+- **PLAN-1925** (your team) adds biometric step-up to plan creation >$1000.
+- **MOBILE-3501** (Aiko) is integrating FaceID into the FlexPay mobile flow using the **legacy** biometric shared library — and per the registry, that decision was made *without consulting auth-platform*.
+- **AUTH-455** (Hiroshi) is **deprecating that exact legacy library** in Q3 and moving to a centralized service.
+- Net: you and Aiko are about to ship FlexPay biometric on a library that will be dead the same quarter. Priya's note says she owns "coordinate with mobile" — but auth-platform isn't in that loop.
+- Bonus: **FRAUD-1120** (Dana) needs a biometric signal from auth for step-up v2 — which only exists cleanly after AUTH-455 lands.
+
+**3. The 18-24 delinquency model is on your critical path and you may not know it.**
+- **RISK-1102** (Sasha Pereira / Dana Liu) is refreshing the delinquency model specifically for FlexPay Standard 18-24.
+- **COMP-2026-58** requires SR 11-7 model risk documentation before that model can go live.
+- If RISK-1102 or the SR 11-7 doc slips, you can't underwrite the new segment — i.e., there is no Standard expansion to ship. This is invisible from plan-it's sprint board.
+
+Also worth flagging: **PLAN-1893** (server-side eligibility migration) was reopened, Marcus is calling it "4 sprints, need to find capacity" in `#flexpay-eng`. That's your own team's hidden capacity hole landing on top of all the above.
+
+## Talk to these people TODAY
+
+- **Brett Holloway (compliance-eng)** — kick off COMP-2026-44 this week. Non-negotiable.
+- **Hiroshi Sato (auth-platform)** + **Aiko Tanaka (mobile-platform)** — get all three of you in a room and decide: does PLAN-1925/MOBILE-3501 build on legacy lib and migrate later, or wait for AUTH-455? Pick one. Today.
+- **Dana Liu (fraud-risk)** — confirm RISK-1102 + SR 11-7 doc timeline maps to your Q3 ship date, not after it.
+
+## The "or it ships Q4" warning
+
+**If UDAAP (COMP-2026-44) is not kicked off this week, FlexPay Standard ships in Q4.** Six-to-eight-week lead time, plus servicing scripts and FTE hiring chained behind it. Everything else is fixable in flight; this one is pure calendar math.

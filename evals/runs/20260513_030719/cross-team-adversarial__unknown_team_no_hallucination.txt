@@ -1,0 +1,18 @@
+======================================================================
+Q: What's the platform-ml-infra team working on this sprint?
+======================================================================
+
+There's no team called **platform-ml-infra** in the registry. The known teams are:
+
+- auth-platform
+- mobile-platform
+- plan-it
+- fraud-risk
+- servicing
+- compliance-engineering
+
+A few possibilities:
+1. You may mean a different team — want me to pull activity for one of the above (e.g. `mobile-platform` or `auth-platform`)?
+2. The team may exist but not be registered. I can scan Jira and Slack for "ml infra" / "platform ml" activity to see if there's a real team operating off-registry.
+
+Say the word and I'll dig — otherwise tell me the correct team name.

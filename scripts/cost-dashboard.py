@@ -62,6 +62,46 @@ def load_audit_events(audit_dir: Path) -> list[dict[str, Any]]:
     return events
 
 
+def load_outcomes(audit_dir: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    if not audit_dir.exists():
+        return events
+    for path in sorted(audit_dir.glob("outcomes-*.jsonl")):
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return events
+
+
+def summarize_outcomes(outcomes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate outcomes by kind. Returns counts + headline sums."""
+    by_kind: dict[str, int] = defaultdict(int)
+    pr_lines_total = 0
+    incident_minutes_total = 0
+    ai_assisted_incidents = 0
+    for e in outcomes:
+        kind = e.get("kind", "unknown")
+        by_kind[kind] += 1
+        if kind == "pr_merged":
+            pr_lines_total += int(e.get("ai_touched_lines", 0) or 0)
+        if kind == "incident_closed":
+            incident_minutes_total += int(e.get("duration_minutes", 0) or 0)
+            if e.get("ai_assisted"):
+                ai_assisted_incidents += 1
+    return {
+        "by_kind": dict(by_kind),
+        "pr_lines_total": pr_lines_total,
+        "incident_minutes_total": incident_minutes_total,
+        "ai_assisted_incidents": ai_assisted_incidents,
+        "total": len(outcomes),
+    }
+
+
 def load_eval_report() -> dict[str, Any] | None:
     """Parse the committed eval report for headline numbers."""
     path = REPO_ROOT / "evals" / "report.md"
@@ -141,7 +181,11 @@ def aggregate(events: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def render_html(agg: dict[str, Any], eval_info: dict[str, Any] | None) -> str:
+def render_html(
+    agg: dict[str, Any],
+    eval_info: dict[str, Any] | None,
+    outcomes_agg: dict[str, Any] | None = None,
+) -> str:
     now = datetime.now(timezone.utc).isoformat()
 
     def table_rows(d: dict[str, Any], key_label: str, value_label: str) -> str:
@@ -169,6 +213,26 @@ def render_html(agg: dict[str, Any], eval_info: dict[str, Any] | None) -> str:
         if latency_rows
         else "<tr><td colspan='5'><em>no successful requests yet</em></td></tr>"
     )
+
+    outcomes_block = ""
+    if outcomes_agg and outcomes_agg["total"] > 0:
+        rows = []
+        for kind, count in sorted(outcomes_agg["by_kind"].items(), key=lambda kv: -kv[1]):
+            rows.append(f"<tr><td><code>{kind}</code></td><td>{count}</td></tr>")
+        pr_lines = outcomes_agg["pr_lines_total"]
+        inc_min = outcomes_agg["incident_minutes_total"]
+        ai_inc = outcomes_agg["ai_assisted_incidents"]
+        outcomes_block = f"""
+    <section>
+      <h2>Outcomes</h2>
+      <p class="meta">From <code>audit_logs/outcomes-*.jsonl</code> — real-world events that close the loop on AI value. See <a href="../audit_logs/OUTCOMES_SCHEMA.md">schema</a>.</p>
+      <table>
+        <thead><tr><th>Kind</th><th>Count</th></tr></thead>
+        <tbody>{chr(10).join(rows)}</tbody>
+      </table>
+      <p>Headline totals: <strong>{pr_lines:,}</strong> AI-touched lines merged · <strong>{inc_min:,}</strong> minutes of incident time ({ai_inc} AI-assisted)</p>
+    </section>
+    """
 
     eval_block = ""
     if eval_info:
@@ -202,6 +266,8 @@ def render_html(agg: dict[str, Any], eval_info: dict[str, Any] | None) -> str:
 <body>
   <h1>enterprise-coordination — cost &amp; adoption</h1>
   <p class="meta">Generated {now} · {agg['total_events']} audit events processed</p>
+
+  {outcomes_block}
 
   {eval_block}
 
@@ -266,8 +332,10 @@ def main() -> int:
 
     events = load_audit_events(audit_dir)
     agg = aggregate(events)
+    outcomes = load_outcomes(audit_dir)
+    outcomes_agg = summarize_outcomes(outcomes)
     eval_info = load_eval_report()
-    html = render_html(agg, eval_info)
+    html = render_html(agg, eval_info, outcomes_agg)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(html)

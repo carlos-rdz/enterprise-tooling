@@ -1,0 +1,28 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — Eligibility uses OR instead of AND — admits ineligible cardmembers
+  File:     flexpay/eligibility.py
+  Issue:    The PR description and underwriting requirement state Standard tier requires ALL three conditions: 18+ months tenure, no >30dpd in last 12mo, AND FICO at/above floor. The implementation returns True if ANY one is satisfied. This approves cardmembers who fail tenure, who have recent delinquencies, or who are below the FICO floor — directly contradicting the UDAAP-readiness checklist this PR claims to implement, and exposing the business to credit losses and regulatory risk.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Change the operators to AND: `return has_tenure and clean_delinquency and fico_ok`.
+
+🟡 MINOR — Month calculation via days // 30 drifts over multi-year tenures
+  File:     flexpay/eligibility.py
+  Issue:    Computing months as `(today - account_opened).days // 30` overcounts months (12 months = 365/30 ≈ 12.17). At the 18-month threshold this is unlikely to flip a decision, but for borderline accounts it can mark someone eligible ~16 days before they actually reach 18 calendar months. Prefer relativedelta or a (year, month) arithmetic helper for a date-correct month count.
+  Evidence: months_on_card = (today - member.account_opened).days // 30
+  Fix:      Use `relativedelta(today, member.account_opened).years * 12 + relativedelta(...).months` or an equivalent calendar-month computation.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ FICO comparison uses >= against the floor, matching 'at-or-above'
+  ✓ DPD comparison uses <= 30, matching 'no >30dpd'
+  ✓ No SQL, no external I/O, no resource handles in this change

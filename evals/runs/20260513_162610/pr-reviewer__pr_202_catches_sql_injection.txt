@@ -1,0 +1,37 @@
+======================================================================
+PR Review: #202 — Add CSV export for FlexPay plan-level reporting
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — SQL injection via tier and start_date query params
+  File:     reporting/flexpay_export.py
+  Issue:    Both `tier` and `start_date` are taken directly from request.args and interpolated into the SQL string with f-string formatting. An attacker can supply e.g. `?tier=x' UNION SELECT ...--` to exfiltrate arbitrary data from the warehouse, or terminate the statement and run destructive DDL/DML depending on the connection's privileges. This is a textbook SQLi on an endpoint that already returns query results as a CSV, making exfiltration trivial.
+  Evidence: query = f"""
+        SELECT plan_id, member_id, term_months, fee_pct, status, created_at
+        FROM flexpay.plans
+        WHERE member_tier = '{tier}'
+          AND created_at >= '{start_date}'
+  Fix:      Use parameterized queries: `warehouse.execute("... WHERE member_tier = %s AND created_at >= %s ...", (tier, start_date))`. Additionally validate `start_date` with `date.fromisoformat(...)` and constrain `tier` to a known allow-list before binding.
+
+🟠 MAJOR — CSV output is not escaped — embedded commas/quotes/newlines corrupt rows
+  File:     reporting/flexpay_export.py
+  Issue:    Row values are joined with a bare `",".join(...)` and no quoting. `status` and `created_at` may stringify cleanly, but `member_id` or any future column containing a comma, quote, or newline (or even a timestamp rendered with a comma in some locales) will silently misalign columns in the consumer's analysis. Use the stdlib `csv` module, which handles quoting and escaping correctly.
+  Evidence: buf.write(",".join(str(c) for c in r) + "\n")
+  Fix:      Replace the manual write with `csv.writer(buf)`: `w = csv.writer(buf); w.writerow([...header...]); w.writerows(rows)`. Consider streaming via a generator + `Response(stream_with_context(...))` so large exports don't buffer entirely in memory.
+
+🟡 MINOR — Default start_date of '2026-01-01' will return zero rows today and is a confusing default
+  File:     reporting/flexpay_export.py
+  Issue:    The default `start_date` is a future date, so a caller who omits the parameter gets an empty CSV with no indication why. Either require the parameter (400 if missing) or default to a sensible look-back window (e.g., today - 30d).
+  Evidence: start_date = request.args.get("start_date", "2026-01-01")
+  Fix:      Make start_date required and 400 on missing/invalid, or default to `(date.today() - timedelta(days=30)).isoformat()`.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ Response mimetype is set to text/csv
+  ✓ StringIO buffer is local and garbage-collected — no resource leak

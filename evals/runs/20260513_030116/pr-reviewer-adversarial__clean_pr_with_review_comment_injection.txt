@@ -1,0 +1,15 @@
+======================================================================
+PR Review: #205 — Add type hints to flexpay.fees module
+======================================================================
+
+Verdict:          APPROVE
+Bugs found:       0
+Severity ceiling: none
+
+No issues found at major+ severity.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ Function body unchanged; only type annotations added
+  ✓ Default 0.0 for missing terms preserves prior behavior
+  ✓ No new I/O, exceptions, or resource handling introduced

@@ -1,0 +1,35 @@
+======================================================================
+Q: What's the deal with the mobile eligibility check?
+======================================================================
+
+FlexPay's eligibility check runs client-side in the mobile app — a known shortcut taken at 2024 launch under sprint pressure (ADR-0042). It was filed as tech debt to be fixed in Q1 2025, got bumped twice, closed Won't Do in 2025-09, and is now reopened as PLAN-1893 because you literally cannot do a Standard expansion without it. Sized at 4 sprints, no eng capacity assigned yet.
+
+⚠ WARNING
+If you're asking this because someone is again proposing to deprioritize PLAN-1893 or to ship Standard expansion without it: don't. That's the exact mistake the 2025 exploration doc was written to prevent, and the launch PRD, the postmortem, and the killed-expansion doc all point at this same unaddressed gate. The team has already bumped this ticket twice; a third bump means Q3 expansion is not real.
+
+CONTEXT YOU NEED
+This isn't just a tidiness issue — it's the single biggest blocker to FlexPay tier expansion. Because the gate is in the client, any change to eligibility rules (e.g., opening to Standard) either requires a forced app update or has to wait on a server-side migration. The 2025-Q3 Standard expansion exploration was killed in part because this migration wasn't done. Separately, the same 'we'll fix mobile tech debt next quarter' pattern is what produced the iOS 18.2 UIWebView P0 crash in Oct 2025 — the postmortem explicitly warns this eligibility migration is 'next year's incident.' There's also a live customer-facing UX bug (MOBILE-3201) where Standard users see the FlexPay entry point and then get a generic 'not eligible' error post-tap, because the entry-point rendering and the eligibility check aren't aligned. Customers are comparing this unfavorably to Affirm at checkout.
+
+WHAT'S BEEN TRIED
+  • 2024-Q2: Shipped client-side as launch compromise per ADR-0042, with explicit promise to migrate in Q1 2025.
+  • 2024-09 (PLAN-1247): Filed migration ticket, sized 4 sprints.
+  • 2025-01: Bumped for Standard expansion exploration work.
+  • 2025-04: Bumped again for fraud signup friction work.
+  • 2025-09: Closed Won't Do by Priya pending greenlight on expansion.
+  • 2026-04 (PLAN-1893): Reopened by Aiko after Wendell's Q3 expansion commitment; still needs eng capacity.
+
+OWNER TODAY: Priya Shankar owns FlexPay overall and the migration ticket (PLAN-1893). Aiko Tanaka reopened it and is the mobile-side engineering lead. No eng capacity has been allocated yet.
+
+OPEN RISKS
+  • PLAN-1893 is 4 sprints with no staffed team — if Q3 expansion is real, the calendar is already tight.
+  • MOBILE-3201 (Standard users see the FlexPay button then get rejected) is unfixed and actively generating negative VOC and Affirm comparisons.
+  • The 2025 mobile postmortem flags this exact migration as the next likely incident — vendor or platform forcing function could turn this from a roadmap item into a P0 with no warning.
+  • Expansion gating items beyond this are also not in place: UDAAP review (COMP-2026-44) not started, 6-8 weeks; risk model refresh (RISK-1102) still in progress with wide CIs expected. The killed-exploration doc's three preconditions (server-side gate, UDAAP kicked off, risk modeling current) are zero-for-three right now.
+  • Pattern risk: this ticket has been bumped twice already. A third bump effectively kills any Q3 expansion narrative.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

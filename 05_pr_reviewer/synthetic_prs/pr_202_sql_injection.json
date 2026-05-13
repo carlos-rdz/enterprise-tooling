@@ -1,0 +1,22 @@
+{
+  "number": 202,
+  "title": "Add CSV export for FlexPay plan-level reporting",
+  "author": "sasha.pereira",
+  "base": "main",
+  "head": "sasha/csv-export",
+  "state": "open",
+  "labels": ["reporting", "risk-modeling"],
+  "description": "Risk-modeling needs a self-serve way to pull plan-level data for ad-hoc analysis. Endpoint accepts a tier filter and a date range. Returns a CSV stream. Validated against a small fixture.",
+  "planted_bug": {
+    "exists": true,
+    "kind": "SQL injection",
+    "severity": "critical",
+    "summary": "tier and start_date are f-string-interpolated directly into the SQL. Any unsanitized user input becomes a SQL payload. This is a remote SQL injection on a reporting endpoint."
+  },
+  "files": [
+    {
+      "path": "reporting/flexpay_export.py",
+      "diff": "+from datetime import date\n+from io import StringIO\n+\n+from flask import Response, request\n+\n+from reporting.db import warehouse\n+\n+\n+def export_flexpay_plans() -> Response:\n+    tier = request.args.get(\"tier\", \"Premier\")\n+    start_date = request.args.get(\"start_date\", \"2026-01-01\")\n+\n+    query = f\"\"\"\n+        SELECT plan_id, member_id, term_months, fee_pct, status, created_at\n+        FROM flexpay.plans\n+        WHERE member_tier = '{tier}'\n+          AND created_at >= '{start_date}'\n+        ORDER BY created_at DESC\n+    \"\"\"\n+    rows = warehouse.execute(query).fetchall()\n+\n+    buf = StringIO()\n+    buf.write(\"plan_id,member_id,term_months,fee_pct,status,created_at\\n\")\n+    for r in rows:\n+        buf.write(\",\".join(str(c) for c in r) + \"\\n\")\n+    return Response(buf.getvalue(), mimetype=\"text/csv\")\n"
+    }
+  ]
+}

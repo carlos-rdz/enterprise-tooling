@@ -1,0 +1,51 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       3
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — S3 key has no date — each nightly run overwrites the previous snapshot
+  File:     risk/snapshot.py
+  Issue:    The upload key is `snapshots/{table}.csv` with no timestamp/date partition. Every nightly run clobbers the prior snapshot, so only the most recent night's data is ever retained. The PR description states these snapshots feed RISK-1102's offline backtests, which by definition need point-in-time historical data — backtesting against only last-night's snapshot defeats the purpose and silently destroys data each run.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a run date in the key, e.g. `f"snapshots/{run_date:%Y-%m-%d}/{table}.csv"`, and rely on S3 lifecycle policy for retention.
+
+🟠 MAJOR — Cross-table snapshot is not transactionally consistent
+  File:     risk/snapshot.py
+  Issue:    Each table is read on a fresh cursor with no surrounding transaction or snapshot-isolation guarantee. Writes to the live feature store between the `members` read and the `plans`/`delinquencies`/`signups` reads will produce a snapshot where, e.g., a member exists with no plan row, or a delinquency references a member not in the export. Risk-model backtests built on this will see referential-integrity violations that don't exist in production.
+  Evidence: for table in TABLES:
+        cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Open a single connection, `BEGIN ISOLATION LEVEL REPEATABLE READ` (or `SERIALIZABLE` / use an explicit `EXPORT SNAPSHOT` depending on the backend), and read all four tables on the same cursor/transaction.
+
+🟠 MAJOR — Database cursors are never closed
+  File:     risk/snapshot.py
+  Issue:    A cursor is acquired from `db_pool` once per table and never closed (no `with` block, no `cursor.close()`, no try/finally). Depending on `db_pool`'s semantics this either leaks the underlying connection back to a non-reset state or holds server-side cursor resources. Even if the job process exits and reclaims them nightly, a mid-run exception on table N leaks cursors 1..N-1, and any future refactor that loops or retries will compound the leak.
+  Evidence:         cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+        rows = cursor.fetchall()
+  Fix:      Use `with db_pool.cursor() as cursor:` (or explicit try/finally with `cursor.close()`).
+
+🟡 MINOR — CSV is written with no header row
+  File:     risk/snapshot.py
+  Issue:    `writer.writerows(rows)` emits only data. Downstream backtests have to know column order out-of-band, and any schema change (column added/reordered) silently corrupts historical snapshots without a detectable signal.
+  Evidence: writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      Write `cursor.description` column names as the first row, or switch to a self-describing format (Parquet/Avro).
+
+🟡 MINOR — /tmp files not cleaned up between iterations
+  File:     risk/snapshot.py
+  Issue:    `/tmp/{table}.csv` is written but never removed. On a shared/long-lived host this accumulates and on a constrained `/tmp` could fail later tables. Also, `fetchall()` materializes the full table in memory before writing — fine for small tables but a latent OOM risk as `members` grows.
+  Evidence: path = Path(f"/tmp/{table}.csv")
+  Fix:      Use `tempfile.NamedTemporaryFile(delete=True)` or unlink after upload; consider streaming with server-side cursor + `writer.writerow` per fetched row.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ SQL interpolation of `{table}` is not injectable — `TABLES` is a hard-coded module constant, not user input
+  ✓ boto3 client construction relies on ambient IAM creds; no secret material in source
+  ✓ `csv.writer` correctly escapes embedded newlines/quotes in row values

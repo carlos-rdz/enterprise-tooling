@@ -1,0 +1,44 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Snapshot S3 key has no date — every nightly run overwrites the previous snapshot
+  File:     risk/snapshot.py
+  Issue:    The upload key is a constant `snapshots/{table}.csv`. Each nightly run overwrites yesterday's file, so there is no snapshot history. The PR description says these snapshots feed RISK-1102 offline backtests, which inherently require point-in-time history; this implementation makes backtests against any prior date impossible and silently destroys the prior day's data on every run.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a date (or run timestamp) in the key, e.g. `f"snapshots/{run_date:%Y-%m-%d}/{table}.csv"`, and/or rely on S3 object versioning on the bucket. Treat the latest-pointer separately if backtests need a 'current' alias.
+
+🟠 MAJOR — DB cursors are never closed — resource leak under repeated/nightly invocation
+  File:     risk/snapshot.py
+  Issue:    `cursor = db_pool.cursor()` is opened per table and never closed (no `.close()`, no context manager, no try/finally). Even though the job runs nightly, a partial failure mid-loop leaks the open cursor, and depending on the pool implementation, repeated invocations of `snapshot_nightly()` from a long-lived scheduler process can exhaust pool capacity or hold server-side cursors. Combined with `fetchall()` on full tables (`members`, `signups`), the unclosed cursor also pins large result-set memory on the server.
+  Evidence: cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Use `with db_pool.cursor() as cursor:` (or wrap in try/finally with `cursor.close()`), and consider streaming via `fetchmany` / server-side cursor for large tables.
+
+🟡 MINOR — No error handling — one bad table aborts the entire snapshot run
+  File:     risk/snapshot.py
+  Issue:    There is no try/except around the per-table block. A transient failure on `delinquencies` (DB hiccup, S3 throttle, disk full in /tmp) aborts the loop and skips every later table for the night, with no metric/alert beyond a stack trace. For a nightly job feeding backtests, partial success with surfaced errors is usually preferable.
+  Evidence: for table in TABLES:
+        cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Wrap each iteration in try/except, log the failure with table name, continue to the next table, and exit non-zero (or emit a metric) if any table failed so the scheduler can alert.
+
+🟡 MINOR — CSV written without `newline=""` and with no header row
+  File:     risk/snapshot.py
+  Issue:    `csv.writer` documentation requires opening the file with `newline=""` to avoid spurious blank lines (harmless on Linux today, but a footgun if this ever runs on another platform or via tooling that parses strictly). Separately, no header row is written, so downstream consumers must hardcode column order — fragile if the source schema changes.
+  Evidence: with path.open("w") as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      Open with `path.open("w", newline="")` and write `cursor.description` column names as the first row.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ SQL injection via f-string in SELECT: `TABLES` is a hardcoded module-level constant, not user input, so the f-string interpolation is not exploitable.
+  ✓ Hardcoded bucket name: `feature-store-snapshots` is a resource identifier, not a secret.

@@ -29,6 +29,36 @@
         "JIRA_API_TOKEN": "${JIRA_API_TOKEN}",
         "DRY_RUN": "${DRY_RUN:-}"
       }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/github/server.ts"],
+      "description": "GitHub PR review tools. Real API via GITHUB_TOKEN + GITHUB_REPO; synthetic mode reads JSON fixtures from 05_pr_reviewer/synthetic_prs/. DRY_RUN=true turns review-comment posts into stderr logs.",
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_REPO": "${GITHUB_REPO:-carlos-rdz/enterprise-tooling}",
+        "DRY_RUN": "${DRY_RUN:-}"
+      }
+    },
+    "confluence": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/confluence/server.ts"],
+      "description": "Confluence Cloud (read-only). Real API via CONFLUENCE_HOST + CONFLUENCE_EMAIL + CONFLUENCE_API_TOKEN; synthetic mode otherwise.",
+      "env": {
+        "CONFLUENCE_HOST": "${CONFLUENCE_HOST}",
+        "CONFLUENCE_EMAIL": "${CONFLUENCE_EMAIL}",
+        "CONFLUENCE_API_TOKEN": "${CONFLUENCE_API_TOKEN}"
+      }
+    },
+    "grafana": {
+      "command": "npx",
+      "args": ["tsx", "mcp_servers/grafana/server.ts"],
+      "description": "Grafana (read-only metrics + dashboards). Real via GRAFANA_URL + GRAFANA_API_TOKEN; synthetic mode otherwise.",
+      "env": {
+        "GRAFANA_URL": "${GRAFANA_URL}",
+        "GRAFANA_API_TOKEN": "${GRAFANA_API_TOKEN}",
+        "GRAFANA_PROM_DATASOURCE_ID": "${GRAFANA_PROM_DATASOURCE_ID:-1}"
+      }
     }
   }
 }

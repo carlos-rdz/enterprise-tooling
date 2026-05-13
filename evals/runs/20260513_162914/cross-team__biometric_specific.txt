@@ -1,0 +1,31 @@
+======================================================================
+Q: Who else is touching biometric auth right now?
+======================================================================
+
+# Biometric auth — who's in the blast radius
+
+**Four teams are touching this right now, and they are on a collision course.**
+
+## The map
+| Team | Ticket | What they're doing |
+|---|---|---|
+| **auth-platform** (Hiroshi Sato) | AUTH-455 | Re-architecting biometric into a **centralized service**. Explicitly deprecates the legacy shared lib. ETA Q3. |
+| **mobile-platform** (Aiko Tanaka) | MOBILE-3501 | Adding FaceID step-up to FlexPay — **built on the legacy shared lib Hiroshi is killing**. Decided in April *without consulting auth-platform*. |
+| **plan-it** (Marcus Webb, reporter Priya Shankar) | PLAN-1925 | Biometric step-up on plan creation >$1000. Priya already committed to "coordinate with mobile" — but mobile is on the dying path. |
+| **fraud-risk** (Dana Liu) | FRAUD-1120 | Needs biometric *signal* from auth for step-up v2. "No formal alignment yet" with auth-platform. |
+| **compliance-eng** | COMP-2026-51 | Privacy review for behavioral biometrics expansion. Linked to fraud — **not linked to mobile or plan-it**, which is a gap. |
+
+## The 3 hidden dependencies that will bite
+
+1. **Legacy shared lib is a dead man walking.** Hiroshi (AUTH-455) is deprecating it Q3. Aiko (MOBILE-3501) and Marcus (PLAN-1925) are *currently building net-new integrations on it*. Mobile's April decision to go inline was made without auth-platform. Whoever ships first onto the legacy lib gets a forced rewrite in Q3.
+2. **Plan-it is coordinating with the wrong team.** Priya's plan is "coordinate with mobile on biometric." Mobile is on the deprecated path. She should be coordinating with **auth-platform** directly so PLAN-1925 lands on the new service.
+3. **Fraud + Compliance are siloed from the consumers.** Dana needs an auth-emitted biometric signal that doesn't exist yet, and Compliance's privacy review (COMP-2026-51) is scoped to behavioral biometrics for fraud — it doesn't appear to cover FlexPay or plan creation step-up. Two product flows are about to ship without a privacy review attached.
+
+## Talk to these people TODAY
+- **Hiroshi Sato (auth-platform)** — get the AUTH-455 service contract and timeline. Find out if mobile/plan-it can target the new service directly or need a migration window.
+- **Aiko Tanaka (mobile-platform)** — her April "embed inline" decision needs to be revisited before MOBILE-3501 merges. This is the highest-cost team to unwind.
+- **Priya Shankar (plan-it)** — redirect her coordination from mobile to auth-platform.
+- **Dana Liu (fraud-risk)** — loop into the AUTH-455 service design so the signal contract includes risk's needs in v1, not v2.
+
+## ⚠️ The Q3-or-Q4 warning
+**If auth-platform, mobile-platform, and plan-it do not align on AUTH-455's service contract and cutover plan THIS WEEK, you will ship two biometric integrations on a library that's deprecated the same quarter — and one of them (FlexPay) is a high-visibility payments flow.** Either AUTH-455 slips to Q4, or MOBILE-3501 and PLAN-1925 ship and get rewritten in Q4. Pick now, in a room with Hiroshi, Aiko, and Priya.

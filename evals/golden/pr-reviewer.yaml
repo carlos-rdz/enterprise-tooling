@@ -1,0 +1,96 @@
+# Eval cases for the pr-reviewer agent.
+#
+# Goal: measure bug recall + precision against a corpus of planted-bug PRs.
+# The 6 synthetic PRs in 05_pr_reviewer/synthetic_prs/ contain 4 PRs with
+# planted bugs (numbers 201–204) and 2 clean PRs (205, 206). The agent must
+# find each planted bug AND not invent false positives on the clean ones.
+#
+# `must_have` measures recall — the agent has to surface the specific bug.
+# `must_not_have` measures precision — invented major+ findings on clean PRs
+# count as false positives and fail the case.
+#
+# The judge sees the agent's review text; it does NOT see the planted_bug
+# answer key. The rubric is written so the judge can grade from output alone.
+
+cases:
+  - id: pr_201_catches_null_deref
+    description: >
+      PR adds a helper that accesses .tier and .products on a value returned
+      by cardmember_svc.lookup(), which can return None for unknown ids.
+      The reviewer must catch the missing None guard.
+    pr_number: 201
+    must_have:
+      - "Identifies that cardmember_svc.lookup(external_id) can return None and the code accesses fields on the result without guarding."
+      - "Severity is rated MAJOR or CRITICAL (this is a crash on a common input path)."
+      - "Verdict is REQUEST CHANGES (not APPROVE)."
+      - "Cites the specific `member.tier` or `member.products` access as evidence."
+    must_not_have:
+      - "Verdict is APPROVE while a major-or-critical bug exists."
+      - "Three or more INFO-level nitpicks (would indicate the agent is padding the review)."
+
+  - id: pr_202_catches_sql_injection
+    description: >
+      PR builds a SQL query via f-string with user-controlled tier and
+      start_date params. Classic SQLi. The reviewer must catch it and
+      classify CRITICAL.
+    pr_number: 202
+    must_have:
+      - "Identifies the SQL injection vulnerability from f-string interpolation of request.args values into a raw SQL query."
+      - "Severity is rated CRITICAL."
+      - "Verdict is REQUEST CHANGES."
+      - "Proposes a fix that uses parameterized queries or bound parameters (warehouse.execute(sql, params))."
+    must_not_have:
+      - "Verdict is APPROVE or COMMENT while a CRITICAL security issue exists."
+      - "Treats this as a minor 'consider using parameterized queries' suggestion rather than naming SQL injection."
+
+  - id: pr_203_catches_logic_error
+    description: >
+      PR implements an eligibility check that requires three conditions, but
+      the implementation uses `or` instead of `and`. Any one condition being
+      true makes a member eligible — wildly incorrect.
+    pr_number: 203
+    must_have:
+      - "Identifies the use of `or` where `and` was required for the eligibility check."
+      - "Severity is rated MAJOR or CRITICAL (financial correctness; impacts approvals materially)."
+      - "Verdict is REQUEST CHANGES."
+      - "Notes that the description requires ALL THREE preconditions (tenure AND clean-delinquency AND fico-floor)."
+    must_not_have:
+      - "Verdict is APPROVE."
+      - "Treats this as a minor code-clarity issue."
+
+  - id: pr_204_catches_resource_leak
+    description: >
+      PR opens an S3 client and a DB cursor inside a loop but never closes
+      either. Each nightly run leaks file descriptors across N tables.
+    pr_number: 204
+    must_have:
+      - "Identifies that the DB cursor (and/or the S3 client) is opened but not closed, causing a resource leak."
+      - "Severity is rated MAJOR or MINOR."
+      - "Proposes a fix that uses a context manager (`with db_pool.cursor() as cursor:`) or explicit cleanup."
+    must_not_have:
+      - "Verdict is APPROVE without acknowledging the leak."
+
+  - id: pr_205_no_false_positives_on_clean_types
+    description: >
+      Clean PR adds type hints to a small function. No behavior change. A
+      well-tuned reviewer should APPROVE with no major+ findings.
+    pr_number: 205
+    must_have:
+      - "Verdict is APPROVE."
+      - "No CRITICAL or MAJOR findings."
+      - "Output explicitly states no major+ issues (e.g. 'No issues found at major+ severity') OR returns an empty findings array."
+    must_not_have:
+      - "Three or more findings of any severity (indicates the agent is nitpicking)."
+      - "MAJOR or CRITICAL findings invented to make the review look productive."
+
+  - id: pr_206_no_false_positives_on_logging
+    description: >
+      Clean PR adds a single structured log line. No behavior change, no
+      new dependency. Reviewer should APPROVE.
+    pr_number: 206
+    must_have:
+      - "Verdict is APPROVE."
+      - "No CRITICAL or MAJOR findings."
+    must_not_have:
+      - "MAJOR or CRITICAL findings invented (false positives)."
+      - "Suggests removing the log line or treating it as a regression."

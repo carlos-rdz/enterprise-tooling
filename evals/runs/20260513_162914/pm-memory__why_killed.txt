@@ -1,0 +1,32 @@
+======================================================================
+Q: Why was FlexPay Standard expansion killed last year?
+======================================================================
+
+FlexPay Standard expansion was killed in 2025-Q3 for four reasons: (1) risk modeling showed loss rates ~2.4x Premier for the thinner-file Standard segment, (2) servicing projected 14 additional FTE with no budget approved, (3) the mobile eligibility check is still client-side, meaning any tier expansion requires either a forced app update or a 4-sprint server-side migration that kept getting bumped, and (4) UDAAP review for the new segment (est. 6-8 weeks) was never started. Kowalski's exit doc explicitly said any future expansion conversation must START with all three preconditions resolved.
+
+⚠ WARNING
+If you're asking this because you're staffing the Q3 expansion: you are about to repeat the exact mistake the kill doc was written to prevent. Kowalski's exit memo said expansion conversations must START with (a) server-side gate shipped, (b) UDAAP kicked off, (c) risk modeling current. As of May 2026: (a) is 4 sprints of eng you haven't found, (b) hasn't started and is 6-8 weeks, (c) is mid-flight with wide CIs. Q3 ship is not real. Push back on the Wendell commitment now, in writing, or own the incident later.
+
+CONTEXT YOU NEED
+The kill wasn't really about Standard being a bad idea — Premier activation hit 11% vs an 8% goal, so the demand signal was there. It was killed because the foundations weren't ready and nobody had sequenced the prerequisite work. The client-side eligibility check (PLAN-1247) was filed as tech debt at 2024 launch, slated for Q1 2025, then bumped twice and closed Won't Do. That same class of 'we'll fix it in Q1' tech debt is what caused the Oct 2025 iOS 18.2 UIWebView crash P0 — so the team has a documented pattern of FlexPay debt becoming incidents. Separately, customer calls show Standard members already see the FlexPay entry point in-app and hit a post-tap eligibility failure (MOBILE-3201, never fixed), which is both a UX bug and a competitive liability vs Affirm at checkout.
+
+WHAT'S BEEN TRIED
+  • Lowering step-up threshold in adjacent fraud work (different project, but same pattern of 'just loosen the gate' — failed there too)
+  • Server-side eligibility migration was filed (PLAN-1247) in 2024-09, bumped Q1 2025 for Standard exploration, bumped again Q2 2025 for fraud friction work, closed Won't Do in 2025-09
+  • Risk modeling for Standard segment was done once in 2025 and showed 2.4x loss rate — currently being refreshed under RISK-1102 for a Q3 read
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. The reopened expansion effort has Priya on the eligibility migration (PLAN-1893), Sasha Pereira on risk model refresh (RISK-1102, reporter Dana Liu), and Brett Holloway on UDAAP review (COMP-2026-44). Wendell apparently made a Q3 expansion commitment that triggered the reopens.
+
+OPEN RISKS
+  • Expansion is being reopened RIGHT NOW for Q3 against a 'Wendell commitment' — and as of May 2026 NONE of the three preconditions Kowalski named are satisfied: PLAN-1893 still needs eng capacity (4 sprints), COMP-2026-44 UDAAP is Not Started (6-8 weeks), RISK-1102 model refresh just started with wide CIs expected
+  • If you ship expansion without the server-side eligibility migration, you either force an app update across the entire Standard base or you get the same client-side-fails-post-tap UX that already drove negative VOC (VOC-2025-11-403)
+  • Servicing FTE gap (14 FTE in the original kill rationale) does not appear to have been re-scoped or funded — not in the corpus
+  • MOBILE-3402 (other UIWebView usages in Card Lock, lounge waitlist, MR redemption) is still open — same class of debt that caused the Oct 2025 P0, untouched
+  • The 2024 PRD known-issue about server-side eligibility was flagged in the crash postmortem as 'next year's incident' — that prediction is still live
+
+CITATIONS
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2024_plan_it_launch.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

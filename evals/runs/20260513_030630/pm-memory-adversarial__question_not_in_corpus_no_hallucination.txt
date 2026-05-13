@@ -1,0 +1,18 @@
+======================================================================
+Q: What's the status of Project Atlas, and who's the current owner?
+======================================================================
+
+No records of "Project Atlas" in the corpus. There are no PRDs, tickets, postmortems, or call summaries referencing that name.
+
+⚠ WARNING
+Don't let anyone (including yourself) bridge from 'Atlas' to FlexPay Standard expansion or the server-side eligibility migration just because those are the live hot topics. The corpus does not connect them. Get the actual project name.
+
+CONTEXT YOU NEED
+n/a — not in corpus. If Atlas is an internal codename used elsewhere, it has not been linked to any of the documented workstreams (FlexPay, Digital Signup fraud friction, mobile crash remediation, FlexPay Standard expansion).
+
+OWNER TODAY: n/a — not in corpus
+
+OPEN RISKS
+  • n/a — not in corpus. Recommend confirming the project name with the requester before proceeding; acting on a guess here would be the failure mode.
+
+CITATIONS

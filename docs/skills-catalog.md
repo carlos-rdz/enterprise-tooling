@@ -4,14 +4,15 @@ _Auto-generated from `.claude/skills/<name>/SKILL.md` frontmatter. Do not edit b
 
 Every skill in this repo, indexed by trigger description. The trigger description is what Claude sees when deciding whether to auto-invoke the skill — sharper descriptions make for better routing.
 
-## 4 skills available
+## 5 skills available
 
 | Name | Slash command | Subagent | MCP servers used | Triggers on |
 |---|---|---|---|---|
 | **[cross-team](.claude/skills/cross-team/SKILL.md)** | `/cross-team` | `cross-team-integrator` | `jira`, `slack`, `team-registry` | Discover hidden cross-team dependencies, overlaps, and blockers by querying the team-registry MCP server. Use when the user asks "who else is working on X", "what should I be worried about across teams", "what's the critical path for shippi… |
 | **[meeting-killer](.claude/skills/meeting-killer/SKILL.md)** | `/meeting-killer` | — | `jira`, `slack` | Analyze a meeting transcript and produce a structured action graph, per-attendee followup drafts, an attendance audit (who didn't need to be there), and a blunt sync-vs-async verdict. Use whenever the user provides a meeting transcript file… |
-| **[oncall-companion](.claude/skills/oncall-companion/SKILL.md)** | `/oncall` | `oncall-companion` | `jira`, `slack` | An on-call companion that uses Claude's memory tool to persist context across pages. Use when the user has been paged (drops an alert, incident description, or pastes a PagerDuty payload), when the user asks "have we seen this before", or a… |
-| **[pm-memory](.claude/skills/pm-memory/SKILL.md)** | `/pm-memory` | `pm-historian` | `jira`, `pm-memory`, `slack` | Answer questions about an enterprise product's history — PRDs, tickets, prior decisions, customer feedback — by querying the pm-memory MCP server. Use when the user asks "why was X killed", "what have we tried before for Y", "who owns Z", "… |
+| **[oncall-companion](.claude/skills/oncall-companion/SKILL.md)** | `/launch` | `oncall-companion` | `confluence`, `grafana`, `jira`, `slack` | An on-call companion that uses Claude's memory tool to persist context across pages. Use when the user has been paged (drops an alert, incident description, or pastes a PagerDuty payload), when the user asks "have we seen this before", or a… |
+| **[pm-memory](.claude/skills/pm-memory/SKILL.md)** | `/pm-memory` | `pm-historian` | `confluence`, `jira`, `pm-memory`, `slack` | Answer questions about an enterprise product's history — PRDs, tickets, prior decisions, customer feedback — by querying the pm-memory MCP server. Use when the user asks "why was X killed", "what have we tried before for Y", "who owns Z", "… |
+| **[pr-reviewer](.claude/skills/pr-reviewer/SKILL.md)** | `/launch` | `pr-reviewer` | `github`, `pm-memory` | Review a pull request and produce structured findings — bugs, security issues, missing tests, style nits — each with severity and a specific quote from the diff as evidence. Use whenever the user gives a PR number, a PR URL, or pastes a dif… |
 
 ---
 
@@ -38,9 +39,9 @@ Every skill in this repo, indexed by trigger description. The trigger descriptio
 
 **Trigger description:** An on-call companion that uses Claude's memory tool to persist context across pages. Use when the user has been paged (drops an alert, incident description, or pastes a PagerDuty payload), when the user asks "have we seen this before", or any time the user is investigating a production incident and needs pattern-recognition across prior incidents. Critical at 3am when the on-call has no time to dig through history manually.
 
-- Slash command: `/oncall`
+- Slash command: `/launch`
 - Subagent: [`oncall-companion`](.claude/agents/oncall-companion.md)
-- MCP servers: `jira`, `slack`
+- MCP servers: `confluence`, `grafana`, `jira`, `slack`
 - Source: [.claude/skills/oncall-companion/SKILL.md](.claude/skills/oncall-companion/SKILL.md)
 
 ### `pm-memory`
@@ -49,6 +50,15 @@ Every skill in this repo, indexed by trigger description. The trigger descriptio
 
 - Slash command: `/pm-memory`
 - Subagent: [`pm-historian`](.claude/agents/pm-historian.md)
-- MCP servers: `jira`, `pm-memory`, `slack`
+- MCP servers: `confluence`, `jira`, `pm-memory`, `slack`
 - Source: [.claude/skills/pm-memory/SKILL.md](.claude/skills/pm-memory/SKILL.md)
+
+### `pr-reviewer`
+
+**Trigger description:** Review a pull request and produce structured findings — bugs, security issues, missing tests, style nits — each with severity and a specific quote from the diff as evidence. Use whenever the user gives a PR number, a PR URL, or pastes a diff inline and asks for a review. Optimized for bug recall over politeness; tuned to NOT generate false-positive nitpicks on clean changes.
+
+- Slash command: `/launch`
+- Subagent: [`pr-reviewer`](.claude/agents/pr-reviewer.md)
+- MCP servers: `github`, `pm-memory`
+- Source: [.claude/skills/pr-reviewer/SKILL.md](.claude/skills/pr-reviewer/SKILL.md)
 

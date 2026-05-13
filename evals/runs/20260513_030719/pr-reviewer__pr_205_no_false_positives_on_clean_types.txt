@@ -1,0 +1,15 @@
+======================================================================
+PR Review: #205 — Add type hints to flexpay.fees module
+======================================================================
+
+Verdict:          APPROVE
+Bugs found:       0
+Severity ceiling: none
+
+No issues found at major+ severity.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No behavior change: function body is byte-identical aside from annotations
+  ✓ Type annotations (float, int, -> float) match the actual runtime types used in the expression
+  ✓ FLAT_FEE_TABLE.get fallback of 0.0 preserves prior behavior for unknown terms

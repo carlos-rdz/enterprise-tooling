@@ -1,0 +1,25 @@
+======================================================================
+PR Review: #201 — Add servicing-side helper for cardmember lookup
+======================================================================
+
+Verdict:          APPROVE
+Bugs found:       0
+Severity ceiling: minor
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟡 MINOR — Unknown external_id may crash if lookup returns None
+  File:     servicing/cm_helper.py
+  Issue:    If cardmember_svc.lookup() returns None for an unknown external_id (a common client contract), accessing member.tier and member.products will raise AttributeError. Depending on the client's contract this may or may not be possible; if lookup raises on miss instead, this is fine. Worth confirming and either documenting the raised exception or guarding for None.
+  Evidence: member = cardmember_svc.lookup(external_id)
+    return {
+        "tier": member.tier,
+  Fix:      Confirm cardmember_svc.lookup's miss behavior; if it can return None, either raise a domain-specific NotFound or document the AttributeError. If it raises, add a note in the docstring.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No SQL/command injection surface
+  ✓ No secrets in code
+  ✓ External id is passed straight to the client, no string interpolation
+  ✓ List comprehension over member.products is safe assuming products is iterable per client contract

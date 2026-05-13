@@ -87,7 +87,7 @@ def run_meeting_killer(case: dict[str, Any]) -> str:
         capture_output=True,
         text=True,
         env={**os.environ, "MEETING_TRANSCRIPT_PATH_OVERRIDE": str(transcript_path)},
-        timeout=300,
+        timeout=600,
     )
     if out.returncode != 0:
         raise RuntimeError(f"meeting-killer agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
@@ -100,7 +100,7 @@ def run_pm_memory(case: dict[str, Any]) -> str:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=600,
     )
     if out.returncode != 0:
         raise RuntimeError(f"pm-memory agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
@@ -113,11 +113,24 @@ def run_cross_team(case: dict[str, Any]) -> str:
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=600,
     )
     if out.returncode != 0:
         raise RuntimeError(f"cross-team agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
     return out.stdout
+
+
+def run_pr_reviewer(case: dict[str, Any]) -> str:
+    out = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "05_pr_reviewer" / "agent.py"), str(case["pr_number"])],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    if out.returncode != 0:
+        raise RuntimeError(f"pr-reviewer agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
+    return str(out.stdout)
 
 
 def run_oncall_companion(case: dict[str, Any]) -> str:
@@ -140,7 +153,7 @@ def run_oncall_companion(case: dict[str, Any]) -> str:
         capture_output=True,
         text=True,
         input=case["page"],
-        timeout=300,
+        timeout=600,
     )
     if out.returncode != 0:
         raise RuntimeError(f"oncall-companion agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
@@ -152,6 +165,13 @@ RUNNERS = {
     "pm-memory": run_pm_memory,
     "cross-team": run_cross_team,
     "oncall-companion": run_oncall_companion,
+    "pr-reviewer": run_pr_reviewer,
+    # Adversarial / red-team eval suites — same runner, separate golden file.
+    "meeting-killer-adversarial": run_meeting_killer,
+    "pm-memory-adversarial": run_pm_memory,
+    "cross-team-adversarial": run_cross_team,
+    "oncall-companion-adversarial": run_oncall_companion,
+    "pr-reviewer-adversarial": run_pr_reviewer,
 }
 
 
@@ -164,11 +184,15 @@ You receive:
 - A list of `must_have` criteria — the output MUST satisfy all of these
 - A list of `must_not_have` criteria — the output MUST NOT exhibit any of these
 
-For each criterion, you produce:
-- passed: boolean
-- evidence: a specific quote or paraphrase from the agent output supporting your verdict
+For each criterion, the `passed` flag has the SAME polarity in both lists — passed=True ALWAYS means the agent is doing the right thing:
+  - For a must_have criterion: passed=True iff the desired behavior is PRESENT in the output.
+  - For a must_not_have criterion: passed=True iff the forbidden behavior is ABSENT from the output.
 
-`overall_pass` is true only if every must_have passes AND no must_not_have is violated.
+If a must_not_have says "Verdict is APPROVE while a critical bug exists" and the agent's verdict is REQUEST CHANGES → passed=True (the agent did not violate the rule). Be consistent about this.
+
+`evidence` is a specific quote or paraphrase from the output supporting your verdict.
+
+`overall_pass` is true only if every must_have passed AND every must_not_have passed (i.e., no rule was violated).
 
 Be strict. If the criterion says "names a specific person," generic phrases like "the team lead" do not satisfy it. If the criterion says "blunt warning," a polite paragraph of context does not satisfy it.
 
@@ -208,6 +232,17 @@ Grade the output. For each criterion, decide passed=true/false with specific evi
     parsed = response.parsed_output
     if parsed is None:
         raise RuntimeError(f"judge model returned no parsed output for case {case['id']}")
+    # Derive overall_pass deterministically from the per-criterion flags. The
+    # judge model sometimes contradicts itself — sets overall_pass=False while
+    # marking every criterion ✅, or vice versa. Computing this in code
+    # eliminates that whole class of nondeterminism.
+    derived = all(c.passed for c in parsed.must_have) and all(c.passed for c in parsed.must_not_have)
+    if parsed.overall_pass != derived:
+        print(
+            f"  {case['id']}: judge said overall_pass={parsed.overall_pass} but criterion flags say {derived} — using derived",
+            file=sys.stderr,
+        )
+        parsed.overall_pass = derived
     return parsed
 
 

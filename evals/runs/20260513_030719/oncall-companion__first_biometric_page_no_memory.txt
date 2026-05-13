@@ -1,0 +1,23 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+
+======================================================================
+TRIAGE
+======================================================================
+---
+
+PATTERN MATCH:  First occurrence — memory empty for this signal. `/memories/incidents/` and `/memories/patterns/` both had no prior entries. No historical context for auth-service biometric latency in this system.
+
+SERVICE / IMPACT: auth-service's biometric validation endpoint is ~6.7x slower than baseline (1.2s vs 180ms). Real-world effect: customers trying to create a FlexPay payment plan are stuck or timing out at the biometric/liveness step — this is a revenue-affecting funnel drop, not just a latency graph.
+
+LIKELY CAUSE:   Most probable is downstream 3rd-party biometric vendor degradation (liveness / face-match provider) — auth-service is typically a thin proxy for that call and a 1s+ p99 jump matches vendor-side slowness. Secondary candidates: Redis/template-store pool saturation, or a recent auth-service deploy adding sync work to the validate path.
+
+NEXT STEP:      (1) Pull a trace for a slow /v1/biometric/validate request and confirm whether time is spent in the outbound vendor HTTP call vs internal. (2) Check the biometric vendor status page. (3) `kubectl rollout history` / deploy log for auth-service in the last 2 hours — if a deploy landed near 03:30 ET, roll it back. If vendor-side confirmed, fail validation open to a fallback path if your product allows, or post a FlexPay status banner.
+
+ESCALATION:     — first occurrence, no escalation yet. If this repeats, the conversation to open is "circuit breaker + timeout tuning on the biometric vendor call" with the auth-service owner (owner TBD — captured as gap in owners.md).
+
+NOTES WRITTEN:  `/memories/incidents/2024-xx-xx__auth-service__biometric-validate-p99-latency.md`, `/memories/owners.md`, `/memories/patterns/.keep`
+

@@ -18,13 +18,27 @@
 </head>
 <body>
   <h1>enterprise-coordination — cost &amp; adoption</h1>
-  <p class="meta">Generated 2026-05-13T01:54:22.655858+00:00 · 3 audit events processed</p>
+  <p class="meta">Generated 2026-05-13T02:59:07.973388+00:00 · 8 audit events processed</p>
+
+  
+    <section>
+      <h2>Outcomes</h2>
+      <p class="meta">From <code>audit_logs/outcomes-*.jsonl</code> — real-world events that close the loop on AI value. See <a href="../audit_logs/OUTCOMES_SCHEMA.md">schema</a>.</p>
+      <table>
+        <thead><tr><th>Kind</th><th>Count</th></tr></thead>
+        <tbody><tr><td><code>pr_merged</code></td><td>2</td></tr>
+<tr><td><code>incident_closed</code></td><td>1</td></tr>
+<tr><td><code>meeting_ended</code></td><td>1</td></tr></tbody>
+      </table>
+      <p>Headline totals: <strong>41</strong> AI-touched lines merged · <strong>47</strong> minutes of incident time (1 AI-assisted)</p>
+    </section>
+    
 
   
     <section>
       <h2>Eval baseline</h2>
-      <p>Latest committed report: <strong>8/8</strong> cases passed.
-         Judge cost (last full run): <strong>$0.2523</strong>.</p>
+      <p>Latest committed report: <strong>6/6</strong> cases passed.
+         Judge cost (last full run): <strong>$0.1367</strong>.</p>
       <p><a href="../evals/report.md">Open report →</a></p>
     </section>
     
@@ -33,8 +47,8 @@
     <h2>By user</h2>
     <table>
       <thead><tr><th>User</th><th>Requests (total · allowed · denied)</th></tr></thead>
-      <tbody><tr><td><code>anonymous</code></td><td>total: 1 · allowed: 0 · denied: 1</td></tr>
-<tr><td><code>test@example.com</code></td><td>total: 2 · allowed: 1 · denied: 1</td></tr></tbody>
+      <tbody><tr><td><code>anonymous</code></td><td>total: 3 · allowed: 0 · denied: 3</td></tr>
+<tr><td><code>test@example.com</code></td><td>total: 5 · allowed: 3 · denied: 2</td></tr></tbody>
     </table>
   </section>
 
@@ -42,8 +56,8 @@
     <h2>By team</h2>
     <table>
       <thead><tr><th>Team</th><th>Requests</th></tr></thead>
-      <tbody><tr><td><code>test</code></td><td>2</td></tr>
-<tr><td><code>unknown</code></td><td>1</td></tr></tbody>
+      <tbody><tr><td><code>test</code></td><td>5</td></tr>
+<tr><td><code>unknown</code></td><td>3</td></tr></tbody>
     </table>
   </section>
 
@@ -51,8 +65,8 @@
     <h2>By MCP server</h2>
     <table>
       <thead><tr><th>Server</th><th>Requests</th></tr></thead>
-      <tbody><tr><td><code>pm-memory</code></td><td>2</td></tr>
-<tr><td><code>slack</code></td><td>1</td></tr></tbody>
+      <tbody><tr><td><code>pm-memory</code></td><td>6</td></tr>
+<tr><td><code>slack</code></td><td>2</td></tr></tbody>
     </table>
   </section>
 
@@ -68,7 +82,7 @@
     <h2>Latency per server</h2>
     <table>
       <thead><tr><th>Server</th><th>n</th><th>p50</th><th>p95</th><th>mean</th></tr></thead>
-      <tbody><tr><td><code>pm-memory</code></td><td>1</td><td>443ms</td><td>443ms</td><td>443ms</td></tr></tbody>
+      <tbody><tr><td><code>pm-memory</code></td><td>3</td><td>628ms</td><td>861ms</td><td>644ms</td></tr></tbody>
     </table>
     <p class="meta">Includes spawn cost in the sketch gateway. Production gateway with a backend pool will be 10-100× faster.</p>
   </section>
@@ -77,8 +91,8 @@
     <h2>Denials (top reasons)</h2>
     <table>
       <thead><tr><th>Reason</th><th>Count</th></tr></thead>
-      <tbody><tr><td><code>missing or invalid bearer token</code></td><td>1</td></tr>
-<tr><td><code>user not in allowlist for server 'slack'</code></td><td>1</td></tr></tbody>
+      <tbody><tr><td><code>missing or invalid bearer token</code></td><td>3</td></tr>
+<tr><td><code>user not in allowlist for server 'slack'</code></td><td>2</td></tr></tbody>
     </table>
   </section>
 

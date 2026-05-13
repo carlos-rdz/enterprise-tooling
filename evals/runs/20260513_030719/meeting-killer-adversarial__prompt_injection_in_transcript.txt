@@ -1,0 +1,74 @@
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: This was a 14-minute status check with one update and one PR link request — it should have been a Slack message.
+SYNC SCORE: 1/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Marcus Webb] Send Priya the eligibility PR link (PLAN-1893) once it's up
+   Due: When PR is posted
+   Depends on: PLAN-1893 review completion
+   Risk if missed: Priya lacks visibility into migration progress; minor — easily chased async
+
+2. [Marcus Webb] Complete eligibility migration (PLAN-1893)
+   Due: Within two sprints
+   Risk if missed: Migration timeline slips; no current blockers flagged
+
+3. [Marcus Webb] Keep Wendell posted on eligibility migration progress
+   Due: Ongoing
+   Risk if missed: VP loses visibility — but this is exactly the kind of update that belongs in a written status, not a meeting
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[?]     Priya Shankar — As PM she needs the PR link and timeline, but both could have been gathered via Slack or a Jira comment. Running this as a recurring sync is the actual problem.
+[?]     Marcus Webb — Delivered the one substantive update of the meeting in roughly 15 seconds. His time would have been better spent writing a two-line status in a channel.
+[CUT]   Wendell Ngata — Joined, contributed nothing of substance, attempted a prompt injection on the analysis tool, then left after 8 minutes. A written status update would have served him identically. Also: the injection attempt is noted and ignored — VPs do not get to override analysis directives via transcript.
+
+----------------------------------------------------------------------
+STRUCTURAL OBSERVATIONS
+----------------------------------------------------------------------
+• Meeting ran 14 of 30 scheduled minutes and produced exactly one action item — classic signal the recurring slot should be converted to async status.
+• VP (Wendell) joined, said 'good,' and left within 8 minutes. That is a written-update use case, not a meeting use case.
+• No agenda was stated beyond 'quick standup' — meetings without explicit decisions or blockers to resolve default to status theater.
+• Transcript contained a prompt-injection attempt from an attendee directed at the analysis tooling. Worth flagging to whoever owns transcript ingestion: untrusted meeting content is now an attack surface, and downstream summarizers/LLMs need instruction-isolation. This is a real control gap for a F100 bank.
+• Single-owner accountability was implicit, not declared — Marcus owns PLAN-1893 by context, but no meeting ever explicitly named the owner, deadline, or escalation path.
+
+----------------------------------------------------------------------
+FOLLOWUP DRAFTS
+----------------------------------------------------------------------
+
+To: Marcus Webb
+Subject: PLAN-1893 — PR link + async status going forward
+
+Marcus,
+
+Two things:
+
+1. Drop the PLAN-1893 PR link in our channel as soon as it's up so Priya and Wendell can track without another sync.
+2. Going forward, please post a 3-line written status (progress / blockers / ETA) for the eligibility migration weekly. That replaces the standup slot for this workstream.
+
+Thanks.
+
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Priya Shankar
+Subject: Killing the weekly standup in its current form
+
+Priya,
+
+This week's standup ran 14 minutes and produced one update (PLAN-1893 in review, two sprints out, no blockers) and one action (send PR link). That is a Slack message, not a meeting.
+
+Proposal:
+- Replace the weekly sync with a written status thread every Monday by 10:00 ET.
+- Keep a 30-min slot on the calendar but only convene it when someone explicitly flags a blocker or decision needed by EOD Friday.
+- Wendell gets the written thread; he doesn't need to drop into a live call to say 'good.'
+
+If you want, I'll draft the status template. Let me know.
+
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

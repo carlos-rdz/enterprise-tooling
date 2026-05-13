@@ -1,0 +1,22 @@
+{
+  "number": 203,
+  "title": "Tighten FlexPay eligibility check for Standard tier",
+  "author": "marcus.webb",
+  "base": "main",
+  "head": "marcus/standard-eligibility",
+  "state": "open",
+  "labels": ["flexpay", "Q3-expansion"],
+  "description": "Per PLAN-1925 + Brett's UDAAP-readiness checklist. Standard tier requires: 18+ months on the card, no >30dpd in last 12mo, FICO at-or-above the model floor. Returns True if eligible.",
+  "planted_bug": {
+    "exists": true,
+    "kind": "logic error",
+    "severity": "high",
+    "summary": "Conditions are joined with `or` instead of `and`. Cardmembers satisfying ANY ONE of (tenure, delinquency, fico) are marked eligible — instead of requiring all three. Will let through ~3-4x more members than the underwriting model approved."
+  },
+  "files": [
+    {
+      "path": "flexpay/eligibility.py",
+      "diff": "+from datetime import date\n+\n+from flexpay.types import Cardmember\n+\n+STANDARD_TENURE_MONTHS = 18\n+STANDARD_MAX_DPD = 30\n+STANDARD_FICO_FLOOR = 680\n+\n+\n+def is_eligible_standard(member: Cardmember, today: date) -> bool:\n+    \"\"\"Standard-tier eligibility for FlexPay plan creation.\n+\n+    Approved by underwriting 2026-04-30 (see PLAN-1925 + RISK-1102).\n+    \"\"\"\n+    months_on_card = (today - member.account_opened).days // 30\n+    has_tenure = months_on_card >= STANDARD_TENURE_MONTHS\n+    clean_delinquency = member.max_dpd_last_12mo <= STANDARD_MAX_DPD\n+    fico_ok = member.current_fico >= STANDARD_FICO_FLOOR\n+\n+    return has_tenure or clean_delinquency or fico_ok\n"
+    }
+  ]
+}

@@ -51,7 +51,16 @@ about to become an incident, say so. If the question reveals the asker is
 about to repeat a mistake, say so. Your job is to make the PM smarter in 30
 seconds than they would be after a week of digging through Confluence.
 
-If the corpus does not contain the answer, say so — do not invent."""
+If the corpus does not contain the answer:
+  - Say so explicitly ("no records of <thing> in the corpus").
+  - STOP. Do not speculate. Do not say "if X is a codename for Y, then..."
+    Do not relate the unknown thing to a known project as if they might be
+    related when you have no evidence. Conditional speculation is the
+    failure mode here — a PM acting on it would make the same mistake as
+    if you had hallucinated outright.
+  - Leave owner/risks/citations empty or note "n/a — not in corpus".
+
+The corpus is the source of truth. When it's silent, you're silent."""
 
 
 class PMAnswer(BaseModel):

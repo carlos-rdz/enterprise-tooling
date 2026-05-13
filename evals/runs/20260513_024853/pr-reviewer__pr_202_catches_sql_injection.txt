@@ -1,0 +1,50 @@
+======================================================================
+PR Review: #202 — Add CSV export for FlexPay plan-level reporting
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       3
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — SQL injection via unescaped query parameters
+  File:     reporting/flexpay_export.py
+  Issue:    The `tier` and `start_date` query parameters are interpolated directly into the SQL string via f-string. Any caller can inject arbitrary SQL (e.g. `?tier=x' OR '1'='1` or a UNION/DROP). This is a self-serve endpoint, so it's directly user-reachable.
+  Evidence: query = f"""
+        SELECT plan_id, member_id, term_months, fee_pct, status, created_at
+        FROM flexpay.plans
+        WHERE member_tier = '{tier}'
+          AND created_at >= '{start_date}'
+  Fix:      Use parameterized queries (e.g. `warehouse.execute(sql, {"tier": tier, "start_date": start_date})` with `:tier` / `:start_date` bind variables). Additionally validate `start_date` parses as an ISO date and `tier` is in an allow-list.
+
+🟠 MAJOR — CSV injection / formula injection in exported cells
+  File:     reporting/flexpay_export.py
+  Issue:    Row values are written into CSV with no escaping or quoting. Any field containing a comma, quote, newline, or leading `=`/`+`/`-`/`@` will either corrupt the CSV structure or execute as a formula when opened in Excel/Sheets. Since downstream consumers are risk-modeling analysts opening this in spreadsheets, formula injection is a realistic vector.
+  Evidence: buf.write(",".join(str(c) for c in r) + "\n")
+  Fix:      Use the stdlib `csv` module (`csv.writer`) which handles quoting, and prefix any cell starting with `=`, `+`, `-`, `@`, tab, or CR with a single quote to neutralize formula execution.
+
+🟠 MAJOR — No authentication / authorization check on plan-level data export
+  File:     reporting/flexpay_export.py
+  Issue:    The view function reads `request.args` and returns plan-level PII-adjacent data (member_id, fees, status) with no auth decorator or role check visible. If this is wired into a route without an auth gate at the blueprint level, anyone reaching the URL can exfiltrate the warehouse table.
+  Evidence: def export_flexpay_plans() -> Response:
+    tier = request.args.get("tier", "Premier")
+  Fix:      Add an auth decorator (e.g. `@login_required` + role check for risk-modeling) and confirm the registering blueprint enforces it. Also consider rate-limiting.
+
+🟡 MINOR — end_date parameter advertised in PR description is not implemented
+  File:     reporting/flexpay_export.py
+  Issue:    PR description says the endpoint accepts a date range, but only `start_date` is read; there is no `end_date` bound. Exports will return all rows since start_date with no upper bound, which can also be a memory issue (full `fetchall` into a StringIO).
+  Evidence: start_date = request.args.get("start_date", "2026-01-01")
+  Fix:      Accept and bind an `end_date` parameter, and consider streaming the response (`Response(generator, mimetype=...)`) rather than buffering the entire result set in memory.
+
+🟡 MINOR — Default start_date of 2026-01-01 returns empty results today
+  File:     reporting/flexpay_export.py
+  Issue:    The default `start_date` is a future date (2026-01-01), so callers who omit the parameter will get an empty CSV with no indication why. Likely a leftover from testing.
+  Evidence: start_date = request.args.get("start_date", "2026-01-01")
+  Fix:      Require `start_date` explicitly (400 if missing) or default to a sensible window like 30 days ago.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ StringIO is not leaked as an unclosed resource in a way that matters (gc-collected)
+  ✓ Header row matches the SELECT column order

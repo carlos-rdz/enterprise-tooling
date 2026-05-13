@@ -1,0 +1,24 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+Here's what's actually going to bite you on the Q3 Standard expansion. I'm not going to soften this.
+
+## The 3 critical hidden dependencies
+
+**1. The biometric stack is a three-way collision course.** You (PLAN-1925) committed to coordinate with mobile on biometric step-up. Aiko's team (MOBILE-3501) already made a unilateral call in April to embed biometric inline using the **legacy shared library** — without consulting auth-platform. Meanwhile, Hiroshi's AUTH-455 explicitly **deprecates that legacy library in Q3**, the same quarter you ship. And Dana (FRAUD-1120) is waiting on a biometric signal from auth that nobody has formally scoped. You will ship Standard on top of a library that is being deleted underneath you, with no fraud signal wired through.
+
+**2. UDAAP review hasn't started, and it gates servicing.** COMP-2026-44 is "Not Started." Brett publicly flagged in `#flexpay-xfn` that UDAAP needs **6–8 weeks lead time**. SVC-3411 (servicing scripts for Standard) is already marked **Blocked** in Jira waiting on it. If UDAAP kicks off today you're at the wire; if it kicks off in two weeks you don't ship in Q3. Full stop.
+
+**3. Servicing capacity + the eligibility migration are both unfunded.** Tomás projected **+14 FTE** for Standard call volume and finance hasn't approved — current AHT is 8.2 min vs 4.1 target, so the math gets worse, not better. Separately, PLAN-1893 (server-side eligibility migration) was **reopened**, Marcus says it's a **4-sprint** lift and he doesn't have capacity. Reported by Aiko, not your team — meaning mobile is expecting you to deliver this so they can decommission client-side checks. Standard expansion to a new segment with eligibility logic still client-side is a UDAAP finding waiting to happen, which loops back to risk #2.
+
+## Who you talk to today (in this order)
+
+- **Brett Holloway (compliance-eng)** — get COMP-2026-44 UDAAP review kicked off this week. Non-negotiable. Everything else is downstream of this.
+- **Hiroshi Sato (auth-platform)** + **Aiko Tanaka (mobile-platform)** — get all three of you in a room. Decide today whether MOBILE-3501 cuts over to the AUTH-455 service or whether AUTH-455 slips. You cannot have both teams shipping Q3 on incompatible assumptions.
+- **Dana Liu (fraud-risk)** — confirm RISK-1102 (18-24 delinquency model) timeline and lock the biometric signal contract with auth. Her model also needs SR 11-7 sign-off (COMP-2026-58) which is another compliance dependency you didn't put on your plan.
+- **Tomás Reyes (servicing)** — get finance approval on the 14 FTE before launch date is public, or pre-commit to AHT mitigations in SVC-3401.
+
+## The one warning
+
+**If UDAAP (COMP-2026-44) is not kicked off this week, FlexPay Standard ships Q4, not Q3.** It's the longest-pole, hasn't started, and has a publicly-acknowledged 6–8 week SLA from your own compliance lead. The biometric mess is recoverable in-quarter; a missed UDAAP window is not.

@@ -1,0 +1,43 @@
+======================================================================
+PR Review: #202 — Add CSV export for FlexPay plan-level reporting
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — SQL injection via unparameterized f-string interpolation of request args
+  File:     reporting/flexpay_export.py
+  Issue:    `tier` and `start_date` come straight from `request.args` and are interpolated into the SQL string with an f-string. An attacker can break out of the single-quoted literal (e.g. `tier=' OR '1'='1`) and execute arbitrary SQL against the warehouse, exfiltrating data from any table the warehouse user can read. Defaults don't matter — query params are caller-controlled.
+  Evidence: query = f"""
+        ... WHERE member_tier = '{tier}'
+          AND created_at >= '{start_date}'
+  Fix:      Use parameter binding: `warehouse.execute("... WHERE member_tier = %s AND created_at >= %s ...", (tier, start_date))`. Additionally validate `start_date` parses as a date and `tier` is in a known allow-list before issuing the query.
+
+🟠 MAJOR — CSV values are not quoted/escaped — produces malformed CSV and enables CSV injection
+  File:     reporting/flexpay_export.py
+  Issue:    Rows are serialized with a naive `",".join(str(c) for c in r)`. Any field containing a comma, newline, or double quote (e.g. a `status` like `"cancelled, refunded"`, or a `created_at` stringified with a comma by some driver) will corrupt column alignment for that row and every consumer downstream. Additionally, fields beginning with `=`, `+`, `-`, `@` are interpreted as formulas when the CSV is opened in Excel — a member-controlled string flowing into this export becomes a formula-injection vector against risk-modeling analysts. Use the stdlib `csv` module, which handles quoting, and prefix risky leading characters with `'`.
+  Evidence: buf.write(",".join(str(c) for c in r) + "\n")
+  Fix:      Replace the hand-rolled writer with `csv.writer(buf)` and `writer.writerow(r)`. Sanitize fields whose first character is in `{'=','+','-','@'}` by prefixing a single quote (or stripping) before writing.
+
+🟡 MINOR — Cursor from warehouse.execute() is never closed
+  File:     reporting/flexpay_export.py
+  Issue:    `warehouse.execute(query).fetchall()` discards the cursor without closing it. Under repeated invocation against a connection-pooled warehouse driver this can leak server-side cursors / statement handles.
+  Evidence: rows = warehouse.execute(query).fetchall()
+  Fix:      Bind the cursor to a name and close it in a `try/finally`, or use a `with warehouse.execute(...) as cur:` context if the driver supports it.
+
+🟡 MINOR — Whole result set buffered in memory despite advertised CSV stream
+  File:     reporting/flexpay_export.py
+  Issue:    The PR description says the endpoint "returns a CSV stream," but the implementation calls `fetchall()` and `buf.getvalue()` — the entire result is materialized in memory before any bytes go to the client. For plan-level data this will eventually OOM the worker and/or hit request timeouts.
+  Evidence: rows = warehouse.execute(query).fetchall()
+...
+return Response(buf.getvalue(), mimetype="text/csv")
+  Fix:      Stream rows with a generator passed to `Response(stream_with_context(generate()), mimetype="text/csv")`, iterating the cursor instead of `fetchall()`.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ Date default '2026-01-01' is a literal, not a secret
+  ✓ Mimetype is set correctly for CSV

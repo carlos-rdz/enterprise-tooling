@@ -146,6 +146,9 @@ const BACKENDS: Record<string, string> = {
   "team-registry": join(REPO_ROOT, "mcp_servers/team_registry/server.ts"),
   slack: join(REPO_ROOT, "mcp_servers/slack/server.ts"),
   jira: join(REPO_ROOT, "mcp_servers/jira/server.ts"),
+  github: join(REPO_ROOT, "mcp_servers/github/server.ts"),
+  confluence: join(REPO_ROOT, "mcp_servers/confluence/server.ts"),
+  grafana: join(REPO_ROOT, "mcp_servers/grafana/server.ts"),
 };
 
 /**

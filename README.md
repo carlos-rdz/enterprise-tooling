@@ -10,15 +10,16 @@ The bet: every fintech has saturated coding assistants. The actual leverage is o
 
 See [`research/fintech-ai-eng-landscape.md`](research/fintech-ai-eng-landscape.md) for the public landscape audit (Stripe, Block, BlackRock, JPM, Klarna, Ramp): **zero major fintech publicly does what this repo does on the coordination layer.** Coding-assistant adoption is already settled. The upstream layer is wide open.
 
-**Four workflows**, each implemented **twice** — once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage. See [`docs/skills-catalog.md`](docs/skills-catalog.md) for the auto-generated catalog.
+**Five workflows + a meta-orchestrator**, each implemented twice — once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage. See [`docs/skills-catalog.md`](docs/skills-catalog.md) for the auto-generated catalog. The fifth — **`pr-reviewer`** — measures bug recall + false-positive precision against a synthetic PR corpus and gates the eval suite on both. The meta-agent **`orchestrator`** fans out to the other four in parallel and synthesizes a single brief for high-stakes multi-team initiatives.
 
 **Production-shaped, not toy-shaped:**
+- **7 MCP servers** — 4 local-data (`pm-memory`, `team-registry`, +others) and 3 live-API (`slack`, `jira`, `github`, `confluence`, `grafana`). All ship with synthetic fallback so `npm install && npx tsx` always works.
 - **MCP gateway** with bearer-token auth, per-user rate limits, per-server ACLs, JSONL audit log with [SOX-compatible schema](audit_logs/SCHEMA.md).
 - **Three operational modes** per live integration: `synthetic` (no creds, clone-and-run works), `dry-run` (real reads, fake writes), `live`.
-- **Cost + adoption dashboard** auto-generated from audit logs.
-- **LLM-judge eval harness** with token-cost tracking, baseline locked in CI (8/8 pass, ~$0.25/run).
-- **Tests**: 33 Vitest + 33 pytest, strict mypy, every push gated.
-- **Hardening**: structured logging, retry-with-backoff, LRU caching, `McpError` types, `health_check` tools, `PreToolUse` hooks for write-operation gating.
+- **Cost + adoption dashboard** auto-generated from audit logs, with **cost-per-outcome** metrics joining audit spend against an outcomes log (PRs merged, incidents closed, action items completed).
+- **LLM-judge eval harness** with token-cost tracking + **deterministic overall_pass derivation** so judge nondeterminism doesn't flap the gate. 5 happy-path suites + 5 **adversarial suites** (prompt injection, hallucination resistance, credential-leakage, false-positive precision) — gated in CI nightly.
+- **Tests**: 60 Vitest + 51 pytest, strict mypy across `_shared` + `evals` + all 5 agents, every push gated.
+- **Hardening**: structured logging, retry-with-backoff, LRU caching, `McpError` types, `health_check` tools, `PreToolUse` hooks for write-gating + secret-scanning (14 credential patterns + entropy heuristics).
 
 **Adding your own MCP server** is a single file + a 10-step checklist — see [`docs/adding-an-mcp-server.md`](docs/adding-an-mcp-server.md).
 

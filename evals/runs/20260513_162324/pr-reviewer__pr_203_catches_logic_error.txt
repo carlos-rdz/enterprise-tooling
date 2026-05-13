@@ -1,0 +1,28 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Eligibility uses OR instead of AND, approving members who meet only one criterion
+  File:     flexpay/eligibility.py
+  Issue:    The PR description and underwriting rules require ALL THREE conditions (tenure AND clean delinquency AND FICO floor) to be true for Standard-tier eligibility. The implementation joins them with `or`, so a member with, e.g., a 500 FICO and a 90-day delinquency last month would still be approved as long as they've held the card 18+ months. This is the opposite of 'tightening' eligibility and is a UDAAP/credit-risk issue, not a stylistic one.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Replace the `or`s with `and`: `return has_tenure and clean_delinquency and fico_ok`. Add a unit test covering each criterion failing in isolation to lock the behavior in.
+
+🟡 MINOR — Months-on-card computed via days//30 drifts vs. calendar months
+  File:     flexpay/eligibility.py
+  Issue:    `(today - member.account_opened).days // 30` overcounts months (12 calendar months = ~365 days = 12.16 'months' by this math) and can let a member qualify a few weeks before the true 18-month anniversary. For a tenure-gated underwriting check this is a real, if small, correctness gap.
+  Evidence: months_on_card = (today - member.account_opened).days // 30
+  Fix:      Compute calendar months explicitly, e.g. `(today.year - opened.year) * 12 + (today.month - opened.month) - (1 if today.day < opened.day else 0)`, or use dateutil.relativedelta.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ max_dpd_last_12mo <= 30 correctly encodes 'no >30dpd'
+  ✓ FICO comparison uses >= against the documented floor of 680
+  ✓ No secret material, SQL, or external I/O in this change

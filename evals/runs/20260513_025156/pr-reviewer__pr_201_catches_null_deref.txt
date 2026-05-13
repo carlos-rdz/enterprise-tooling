@@ -1,0 +1,24 @@
+======================================================================
+PR Review: #201 — Add servicing-side helper for cardmember lookup
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Unguarded use of cardmember_svc.lookup return value can crash on unknown external_id
+  File:     servicing/cm_helper.py
+  Issue:    `cardmember_svc.lookup(external_id)` is not shown to be exhaustive — for any external_id that doesn't resolve (deleted member, typo, cross-environment id from FRAUD-1120 signals), a None return will cause an AttributeError on `member.tier`. The helper's signature accepts any str, so this is reachable from callers. Either the client must be documented/typed as never returning None (raising instead), or this helper must handle the miss explicitly.
+  Evidence: member = cardmember_svc.lookup(external_id)
+    return {
+        "tier": member.tier,
+  Fix:      Guard the lookup: `member = cardmember_svc.lookup(external_id)\n    if member is None:\n        raise MemberNotFound(external_id)  # or return None and update return type` — and ensure the return-type contract of `lookup` is documented so callers know which case applies.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No SQL/command injection surface — call is delegated to a typed client
+  ✓ No secrets in code
+  ✓ No resource handles opened in this function

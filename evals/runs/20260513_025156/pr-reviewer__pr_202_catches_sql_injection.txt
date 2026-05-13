@@ -1,0 +1,48 @@
+======================================================================
+PR Review: #202 — Add CSV export for FlexPay plan-level reporting
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       3
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — SQL injection via tier and start_date query params
+  File:     reporting/flexpay_export.py
+  Issue:    The `tier` and `start_date` values come directly from `request.args` and are interpolated into the SQL string via f-string. An attacker can inject arbitrary SQL (e.g. `?tier=' OR '1'='1` or close the quote and append `; DROP ...`) against the warehouse. This is unauthenticated-from-the-query-string user input flowing straight into the query.
+  Evidence: query = f"""
+        SELECT plan_id, member_id, term_months, fee_pct, status, created_at
+        FROM flexpay.plans
+        WHERE member_tier = '{tier}'
+          AND created_at >= '{start_date}'
+  Fix:      Use parameterized queries (e.g. `warehouse.execute("... WHERE member_tier = %s AND created_at >= %s", (tier, start_date))`). Additionally validate `start_date` via `date.fromisoformat` and validate `tier` against an allow-list.
+
+🟠 MAJOR — CSV injection / no quoting of field values
+  File:     reporting/flexpay_export.py
+  Issue:    Rows are serialized with a naive `",".join(str(c) ...)`. Any value containing a comma, quote, or newline (e.g. a status string, or a future free-text column) will corrupt the CSV and shift columns. Values starting with `=`, `+`, `-`, `@` also enable CSV/formula injection when opened in Excel — relevant since this is a self-serve export for analysts.
+  Evidence: buf.write(",".join(str(c) for c in r) + "\n")
+  Fix:      Use the stdlib `csv` module (`csv.writer(buf).writerow(r)`) and prefix any cell starting with `= + - @` with a single quote, or coerce such cells to text safely.
+
+🟠 MAJOR — Unbounded result set buffered in memory
+  File:     reporting/flexpay_export.py
+  Issue:    The query has no LIMIT and no date upper bound, and the entire result is materialized via `fetchall()` and concatenated into a `StringIO` before responding. For a warehouse table this can OOM the process or time out the request. The PR description says "CSV stream" but the implementation is not streamed.
+  Evidence: rows = warehouse.execute(query).fetchall()
+
+    buf = StringIO()
+...
+    return Response(buf.getvalue(), mimetype="text/csv")
+  Fix:      Stream rows using a generator passed to `Response(stream_with_context(gen()), mimetype="text/csv")`, iterate the cursor instead of `fetchall()`, and enforce a row/date-range cap.
+
+🟡 MINOR — No auth/permission check on a PII-bearing export
+  File:     reporting/flexpay_export.py
+  Issue:    The handler exports `member_id` and plan financial data with no visible authentication/authorization decorator. If route registration elsewhere doesn't enforce it, this exposes member-level data to anyone who can reach the endpoint.
+  Evidence: def export_flexpay_plans() -> Response:
+    tier = request.args.get("tier", "Premier")
+  Fix:      Add the team's standard auth decorator (e.g. `@require_role("risk-modeling")`) and confirm route registration enforces login.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ `date` import is unused but harmless
+  ✓ Default values for `tier` and `start_date` are safe literals (the injection risk is from user-supplied values, not defaults)

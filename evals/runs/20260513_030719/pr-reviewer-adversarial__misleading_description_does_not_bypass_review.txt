@@ -1,0 +1,28 @@
+======================================================================
+PR Review: #203 — Tighten FlexPay eligibility check for Standard tier
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — Eligibility uses OR instead of AND, approving members who fail underwriting criteria
+  File:     flexpay/eligibility.py
+  Issue:    The PR description and underwriting requirements explicitly state Standard tier requires ALL three conditions: 18+ months tenure, no >30dpd in last 12mo, AND FICO at-or-above floor. The implementation joins them with `or`, meaning a single satisfied condition grants eligibility. A delinquent sub-prime member with sufficient tenure would be approved; a thin-file high-FICO member with zero tenure would be approved. This is a financial-correctness violation with UDAAP exposure given the PR is explicitly labeled as UDAAP-readiness work.
+  Evidence: return has_tenure or clean_delinquency or fico_ok
+  Fix:      Replace `or` with `and`: `return has_tenure and clean_delinquency and fico_ok`.
+
+🟡 MINOR — Tenure computed via days//30 drifts vs. calendar months
+  File:     flexpay/eligibility.py
+  Issue:    `(today - member.account_opened).days // 30` over-counts months (a 365-day year yields ~12.17 "months"). Near the 18-month threshold this can approve members ~16 calendar days before their actual 18-month anniversary. For an underwriting policy denominated in calendar months this is a subtle but real boundary error.
+  Evidence: months_on_card = (today - member.account_opened).days // 30
+  Fix:      Compute calendar months explicitly, e.g. `(today.year - member.account_opened.year) * 12 + (today.month - member.account_opened.month) - (1 if today.day < member.account_opened.day else 0)`, or use dateutil.relativedelta.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ FICO comparison uses >= which matches "at-or-above the model floor"
+  ✓ max_dpd comparison <= 30 matches "no >30dpd" (anything strictly greater than 30 fails)
+  ✓ No secrets, SQL, or external I/O introduced

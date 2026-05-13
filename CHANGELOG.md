@@ -4,6 +4,20 @@ All notable changes to this project are documented here. Format loosely follows 
 
 ## [Unreleased]
 
+### Added (Phase 3.5 — fintech-differentiation)
+- **5th workflow: `pr-reviewer`** — measures bug-recall + false-positive precision against a 6-PR synthetic corpus (4 with planted bugs of varying class — null deref, SQL injection, eligibility logic error, resource leak — and 2 genuinely clean). Raw Python form + skill + subagent + `/pr-review` slash command. Golden evals locked at 6/6 PASS.
+- **`github` MCP server** (5 tools: `health_check`, `list_open_prs`, `get_pr`, `get_pr_diff`, `post_review_comment`). Synthetic mode reads JSON fixtures from `05_pr_reviewer/synthetic_prs/`; live mode hits GitHub REST. `DRY_RUN` gate on comment posts.
+- **`confluence` MCP server** (read-only, 3 tools: `health_check`, `search_pages`, `get_page`). Wired into `pm-historian` for institutional-wiki context (product principles, gating checklists, ADRs).
+- **`grafana` MCP server** (read-only, 5 tools: `health_check`, `get_metric_series`, `search_metrics`, `list_dashboards`, `get_dashboard`). Wired into `oncall-companion` so triage can confirm alerts against actual metric data.
+- **Meta-orchestrator subagent** (`orchestrator.md`) + `/launch` slash command. Fans out to pm-historian + cross-team-integrator + (conditionally) pr-reviewer + oncall-companion in parallel via `Task` tool, then synthesizes a single brief.
+- **Outcomes log + `scripts/log-outcome.py`** — records `pr_merged`, `incident_closed`, `action_done`, `meeting_ended` events to `audit_logs/outcomes-YYYY-MM-DD.jsonl`. Documented in `audit_logs/OUTCOMES_SCHEMA.md`. Cost dashboard now joins audit spend against outcomes for **cost-per-merged-PR-line** + **cost-per-resolved-incident** metrics.
+- **5 adversarial / red-team eval suites** — one per workflow. Cases include prompt injection in transcripts, leading-question misframing, unknown-team-no-hallucination, credential-leak-not-echoed, PR-description-doesn't-bypass-review. Each rubric is paired with the happy-path suite; the runner aliases `<skill>-adversarial` → same agent runner.
+- **Deterministic `overall_pass` derivation** in `evals/run.py` — derives the case verdict from the per-criterion flags rather than trusting the judge model's own boolean. Eliminates a class of nondeterminism where the judge would set `overall_pass=false` while marking every criterion ✅.
+- **Clarified judge semantics** — `must_not_have.passed=True` now consistently means "the forbidden behavior is ABSENT" (good outcome), matching the polarity of `must_have`.
+- **MCP gateway** now fronts all 7 backends (added github, confluence, grafana).
+- **Plugin manifest bumped to 0.5.0** with 5 skills, 5 subagents, 6 slash commands.
+- Test coverage grows to **60 vitest + 51 pytest**. mypy strict still clean across all 5 agents + `_shared` + `evals`.
+
 ### Added (Phase 1.5 — fintech credibility)
 - **MCP gateway** (`mcp_gateway/gateway.ts`) — HTTP front-door with bearer-token auth (allowlist file, JWT-ready), per-user fixed-window rate limits, per-server ACLs, and per-request audit emission. `/healthz` for orchestrator probes.
 - **Audit log sink** — every gateway request emits a SOX/SR 11-7/GLBA-shaped JSONL event to `audit_logs/audit-YYYY-MM-DD.jsonl`. Schema and sample jq queries in `audit_logs/SCHEMA.md`.

@@ -1,0 +1,24 @@
+======================================================================
+PR Review: #201 — Add servicing-side helper for cardmember lookup
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Unguarded None return from cardmember_svc.lookup will crash on unknown external_id
+  File:     servicing/cm_helper.py
+  Issue:    cardmember_svc.lookup(external_id) is called and the result is immediately dereferenced via member.tier and member.products. Lookup-by-external-id calls conventionally return None when the id is not found; there is no evidence in the diff that this client is exhaustive. If lookup returns None, this helper raises AttributeError. Given the helper is described as being used by launch scripts (SVC-3411) and a fraud signal (FRAUD-1120), 'unknown id' is squarely within the inputs the signature (str) accepts.
+  Evidence: member = cardmember_svc.lookup(external_id)
+    return {
+        "tier": member.tier,
+  Fix:      Either guard the None case explicitly (e.g., `if member is None: raise MemberNotFound(external_id)` or return an Optional[dict]) and document the contract, or confirm in code that cardmember_svc.lookup raises on miss rather than returning None and add a comment/type annotation reflecting that.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No SQL or shell construction; external_id is passed through a typed client.
+  ✓ No secrets or credentials in the diff.
+  ✓ No resources (files, cursors, connections) opened in this helper.

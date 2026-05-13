@@ -1,0 +1,26 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+Affected: FlexPay plan creation. Started 03:32 ET tonight.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  **Second occurrence of a known signal.** Prior: `/memories/incidents/2026-04-29__auth-service__biometric-latency.md` — same endpoint `/v1/biometric/validate`, p99 1.4s for 8 min, auto-recovered, AUTH-590 filed but root cause unconfirmed. Pattern file `/memories/patterns/biometric-latency.md` hypothesized legacy biometric shared library is capacity-constrained from mobile-platform + FlexPay ramp. Tonight's signal (p99 1.2s/5min, FlexPay impacted, late-night ET) matches that hypothesis cleanly.
+
+SERVICE / IMPACT:  auth-service biometric validation endpoint is slow enough that FlexPay's plan-creation flow stalls or times out at the validate step — customers attempting to set up a FlexPay plan right now are seeing latency or failures on identity verification.
+
+LIKELY CAUSE:  Same legacy biometric shared library capacity issue from 4/29 — recurring under load on the shared node pool. Not a fresh deploy, not a dependency outage; this is the predicted second hit of an unresolved structural problem (AUTH-590).
+
+NEXT STEP:  (1) Check biometric worker pool CPU/memory + pod count right now; if saturated, bump replica count or bounce the hottest pod to mitigate. (2) Confirm no fresh deploy on auth-service in last 2h to rule out regression. (3) Post in #auth and #flexpay: "recurrence of AUTH-590, mitigating, FlexPay plan creation degraded."
+
+ESCALATION:  **2nd occurrence of biometric-latency pattern.** Start the structural fix conversation with the auth-service team lead (owner TBD — confirm in #auth) tomorrow AM: AUTH-590 needs to move from "filed" to "scoped." Push for one of: dedicated node pool for biometric shared lib, HPA on p99 latency, short-TTL validate-result cache, or legacy-lib deprecation. This will recur again otherwise.
+
+NOTES WRITTEN:
+- `/memories/incidents/2026-XX-XX__auth-service__biometric-latency-2.md`
+- `/memories/patterns/biometric-latency.md` (updated to RECURRING, 2 occurrences)
+- `/memories/owners.md` (new — seeded with auth-service + FlexPay)
+
+Note: I used `2026-XX-XX` in the incident filename because I don't have today's exact date — please rename it to the actual date when you get a moment, or tell me and I'll fix it.
+

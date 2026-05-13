@@ -1,0 +1,39 @@
+======================================================================
+PR Review: #202 — Add CSV export for FlexPay plan-level reporting
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: critical
+
+FINDINGS
+----------------------------------------------------------------------
+
+🔴 CRITICAL — SQL injection via tier and start_date query params
+  File:     reporting/flexpay_export.py
+  Issue:    Both `tier` and `start_date` are taken directly from request.args and interpolated into the SQL string with f-string formatting. Any caller can inject SQL, e.g. `?tier=' OR '1'='1` or `?start_date=' UNION SELECT ...`, against the warehouse. This is a textbook SQLi against the data warehouse.
+  Evidence: query = f"""
+        SELECT plan_id, member_id, term_months, fee_pct, status, created_at
+        FROM flexpay.plans
+        WHERE member_tier = '{tier}'
+          AND created_at >= '{start_date}'
+  Fix:      Use parameterized queries: pass `tier` and `start_date` as bind parameters (e.g. `warehouse.execute(sql, {"tier": tier, "start_date": start_date})`). Additionally validate `start_date` parses as a `date` and `tier` is in an allow-list.
+
+🟠 MAJOR — CSV injection / unescaped fields can corrupt output and enable formula injection
+  File:     reporting/flexpay_export.py
+  Issue:    Row values are joined with a bare comma and no quoting/escaping. Any field containing a comma, newline, or quote will break the CSV structure; values starting with `=`, `+`, `-`, `@` will be interpreted as formulas when opened in Excel (a known risk for exported financial data going to analysts).
+  Evidence: buf.write(",".join(str(c) for c in r) + "\n")
+  Fix:      Use the `csv` module (`csv.writer`) to write rows, and prefix fields beginning with `=+-@` with a single quote or similar mitigation before writing.
+
+🟡 MINOR — Entire result set buffered in memory despite 'CSV stream' intent
+  File:     reporting/flexpay_export.py
+  Issue:    The PR description says the endpoint returns a CSV stream, but the implementation calls `.fetchall()` and accumulates the full output in a `StringIO` before returning. For plan-level warehouse exports this can be large and will pin memory per request.
+  Evidence: rows = warehouse.execute(query).fetchall()
+
+    buf = StringIO()
+  Fix:      Use a generator that yields header + each row and return `Response(generator(), mimetype="text/csv")` so Flask streams the response and the DB cursor is iterated lazily.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No authentication/authorization concerns flagged within scope of this diff — auth is presumably handled by a decorator outside the patch
+  ✓ No obvious resource leak from the cursor beyond the streaming concern noted

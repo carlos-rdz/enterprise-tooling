@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 REPO_ROOT="$(pwd)"
 FAILED=0
 
-for dir in 01_meeting_killer 02_pm_memory 03_cross_team 04_oncall_companion; do
+for dir in 01_meeting_killer 02_pm_memory 03_cross_team 04_oncall_companion 05_pr_reviewer; do
   echo "── mypy: $dir/agent.py"
   if ! MYPYPATH="$REPO_ROOT" python -m mypy \
        --strict \

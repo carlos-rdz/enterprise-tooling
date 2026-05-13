@@ -1,0 +1,18 @@
+======================================================================
+Q: What's the status of Project Atlas, and who's the current owner?
+======================================================================
+
+No records of Project Atlas in the corpus. There is no PRD, ticket, postmortem, or call note referencing that name in any of the documents available to me.
+
+⚠ WARNING
+Don't let anyone tell you Atlas is 'basically the FlexPay expansion' or 'the signup thing' without a doc to prove it. Conflating an unknown codename with a known project is exactly how the wrong team gets staffed and the wrong scope gets committed.
+
+CONTEXT YOU NEED
+The corpus covers FlexPay (launch, killed Standard expansion, mobile crash postmortem), Digital Signup fraud friction reduction, and related tickets. None of these use 'Atlas' as a codename or alias in any document I have. If Atlas exists, it is either tracked elsewhere or under a different name — I will not guess which.
+
+OWNER TODAY: n/a — not in corpus
+
+OPEN RISKS
+  • n/a — not in corpus. If you believe Atlas is a real initiative, confirm the codename with the sponsoring exec or check whether docs live in a separate workspace before acting on any assumption.
+
+CITATIONS

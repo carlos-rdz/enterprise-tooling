@@ -1,0 +1,38 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+# FlexPay Q3 Standard Expansion — Cross-Team Risks
+
+You have a four-way biometric collision, a compliance review nobody has started, and an eligibility refactor with no owner. Here's what matters:
+
+## The 3 critical hidden dependencies
+
+### 1. Biometric step-up is a 4-team train wreck waiting to happen
+- **PLAN-1925** (your team, Marcus): biometric step-up for plans >$1000 — In Progress
+- **MOBILE-3501** (Aiko): integrating FaceID into FlexPay using the **legacy biometric shared library** — and she made that architecture call *without consulting auth-platform*
+- **AUTH-455** (Hiroshi): re-architecting biometric into a centralized service, **ETA Q3 — which deprecates the legacy lib mobile is building on**
+- **FRAUD-1120** (Dana): needs the biometric signal from auth for risk decisioning, "no formal alignment yet"
+
+Translation: mobile is shipping your biometric flow on a library that gets deprecated the same quarter. Fraud is assuming a signal contract that doesn't exist yet. Priya's "decided to coordinate with mobile-platform" decision from May has not closed the loop with auth.
+
+### 2. UDAAP review for Standard hasn't started — and it's 6–8 weeks
+- **COMP-2026-44** status: **Not Started**. Brett posted in #flexpay-xfn explicitly warning about the 6–8 week lead time.
+- **SVC-3411** (servicing scripts for Standard) is already **Blocked** waiting on it.
+- Tomás also flagged Standard expansion adds **14 FTE** in call volume — finance/staffing is downstream of this too.
+
+This is the most likely thing to slip Q3 to Q4. There is no engineering workaround.
+
+### 3. PLAN-1893 (server-side eligibility) is reopened with no owner and 4 sprints of work
+- Marcus on Slack: "PLAN-1893 reopened — server-side eligibility migration, 4 sprints. Need to find capacity."
+- Ticket has **no assignee**, and the reporter is **Aiko Tanaka** (mobile) — meaning mobile is depending on this for Standard.
+- Separately: **RISK-1102** (18-24 delinquency model) depends on **COMP-2026-58** (SR 11-7 model risk doc). Standard targets 18-24. That model has to pass model risk before you can underwrite the segment.
+
+## People to talk to TODAY
+- **Brett Holloway (compliance-eng)** — kick off COMP-2026-44 this week. Non-negotiable.
+- **Hiroshi Sato (auth-platform)** — get AUTH-455 timeline and a decision: does FlexPay ship on legacy lib (and re-integrate later) or wait for the centralized service? Loop in Aiko in the same meeting; don't do it serially.
+- **Dana Liu (fraud-risk)** — confirm the biometric signal contract with auth AND confirm RISK-1102 / model-risk timeline against your Q3 launch date.
+- **Marcus Webb (your eng lead)** — staffing decision on PLAN-1893. 4 sprints with no owner is a ship-date killer.
+
+## The one warning
+**If you do not kick off the UDAAP review (COMP-2026-44) this week, FlexPay Standard ships Q4, not Q3.** Everything else has an engineering escape hatch. UDAAP does not — and servicing is already blocked behind it.

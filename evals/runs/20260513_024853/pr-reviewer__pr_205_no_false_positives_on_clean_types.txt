@@ -1,0 +1,15 @@
+======================================================================
+PR Review: #205 — Add type hints to flexpay.fees module
+======================================================================
+
+Verdict:          APPROVE
+Bugs found:       0
+Severity ceiling: none
+
+No issues found at major+ severity.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No behavior change — signature only adds annotations
+  ✓ Default return path with unknown term_months still returns 0.0
+  ✓ Arithmetic expression unchanged

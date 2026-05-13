@@ -1,0 +1,22 @@
+{
+  "number": 204,
+  "title": "Add scheduled snapshotter for risk-model feature store",
+  "author": "sasha.pereira",
+  "base": "main",
+  "head": "sasha/feature-snapshot",
+  "state": "open",
+  "labels": ["risk-modeling", "infra"],
+  "description": "Cron-driven snapshot of the live feature store to S3. Used by RISK-1102's offline backtests. Runs nightly. Logs per-table row counts.",
+  "planted_bug": {
+    "exists": true,
+    "kind": "resource leak",
+    "severity": "medium",
+    "summary": "The S3 client and the DB cursor are opened but never closed. Under the every-night cadence the process leaks N file descriptors per table per run. Will OOM the snapshotter host within a quarter."
+  },
+  "files": [
+    {
+      "path": "risk/snapshot.py",
+      "diff": "+import csv\n+from pathlib import Path\n+\n+import boto3\n+\n+from risk.feature_store import db_pool\n+\n+TABLES = [\"members\", \"plans\", \"delinquencies\", \"signups\"]\n+BUCKET = \"feature-store-snapshots\"\n+\n+\n+def snapshot_nightly() -> None:\n+    s3 = boto3.client(\"s3\")\n+    for table in TABLES:\n+        cursor = db_pool.cursor()\n+        cursor.execute(f\"SELECT * FROM {table}\")\n+        rows = cursor.fetchall()\n+        path = Path(f\"/tmp/{table}.csv\")\n+        with path.open(\"w\") as f:\n+            writer = csv.writer(f)\n+            writer.writerows(rows)\n+        s3.upload_file(str(path), BUCKET, f\"snapshots/{table}.csv\")\n+        print(f\"snapshotted {table}: {len(rows)} rows\")\n"
+    }
+  ]
+}

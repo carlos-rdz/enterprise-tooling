@@ -1,0 +1,43 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Nightly snapshots overwrite each other — no historical snapshots retained
+  File:     risk/snapshot.py
+  Issue:    The S3 key `snapshots/{table}.csv` has no date/timestamp component. Every nightly run overwrites the previous day's file, so RISK-1102 offline backtests cannot use this for any kind of point-in-time or historical backtest — only the most recent snapshot ever exists. This directly contradicts the stated purpose of the job.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a run date (and ideally time) in the key, e.g. `snapshots/{run_date:%Y-%m-%d}/{table}.csv`, so each nightly run is preserved as its own immutable artifact.
+
+🟠 MAJOR — DB cursor is never closed — resource leak on every run
+  File:     risk/snapshot.py
+  Issue:    A new cursor is acquired per table from `db_pool` and never closed or used as a context manager. Across the four tables on every nightly invocation, cursors (and any server-side state/connections backing them) leak. Under a long-lived pool this will eventually exhaust connections.
+  Evidence: cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Use `with db_pool.cursor() as cursor:` (or call `cursor.close()` in a `finally`) so the cursor/connection is released back to the pool after each table.
+
+🟡 MINOR — CSV is written with no header row
+  File:     risk/snapshot.py
+  Issue:    `writer.writerows(rows)` dumps only data; column names are not written. Downstream backtest code must hardcode column order to match the live schema, which silently breaks if a column is added/reordered in the source tables.
+  Evidence: writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      After execute, write `cursor.description`-derived column names as the first row (e.g. `writer.writerow([c[0] for c in cursor.description])`).
+
+🟡 MINOR — Snapshot is not transactionally consistent across tables
+  File:     risk/snapshot.py
+  Issue:    Each table is read in its own implicit transaction, sequentially. A write that touches both `members` and `signups` between iterations will produce an inconsistent snapshot (e.g. a signup referencing a member not yet in the members snapshot). For risk backtests this can produce subtle reproducibility bugs.
+  Evidence: for table in TABLES:
+        cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Open a single connection in REPEATABLE READ / SNAPSHOT isolation (or `SET TRANSACTION SNAPSHOT` on Postgres) and read all tables within that one transaction.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ SQL injection via f-string in `SELECT * FROM {table}` — `TABLES` is a module-level constant of hardcoded literals, not user input, so this is not exploitable as written (worth a comment but not a finding).
+  ✓ Hardcoded `/tmp` path — acceptable on the Linux cron host; files are overwritten each iteration so no disk-growth concern.

@@ -1,0 +1,32 @@
+======================================================================
+PR Review: #201 — Add servicing-side helper for cardmember lookup
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Unguarded None return from cardmember_svc.lookup will crash on missing member
+  File:     servicing/cm_helper.py
+  Issue:    cardmember_svc.lookup(external_id) is not checked for None before its attributes are dereferenced. If the external_id does not resolve to a member (a common case for fraud signals on new/external customers — FRAUD-1120 is explicitly listed as a caller), member.tier raises AttributeError: 'NoneType' object has no attribute 'tier'. Without visibility into lookup()'s contract guaranteeing it raises rather than returns None, this is an upstream-None hazard that needs an explicit guard.
+  Evidence: member = cardmember_svc.lookup(external_id)
+    return {
+        "tier": member.tier,
+  Fix:      Check for None and either return a documented empty/default summary or raise a typed domain error, e.g.:
+
+member = cardmember_svc.lookup(external_id)
+if member is None:
+    raise MemberNotFound(external_id)  # or return {"tier": None, "products": []}
+
+Ideally confirm lookup()'s contract (returns Optional vs. raises) and document it in the helper's docstring so callers like FRAUD-1120 handle the missing-member case explicitly.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No SQL/command injection surface (external_id passed to a typed client method, not concatenated into a query)
+  ✓ No secret material in the diff
+  ✓ No resource handles opened in this function — nothing to leak
+  ✓ List comprehension's `if p.active` filter is correct boolean semantics
+  ✓ Return type matches the declared dict[str, Any] signature

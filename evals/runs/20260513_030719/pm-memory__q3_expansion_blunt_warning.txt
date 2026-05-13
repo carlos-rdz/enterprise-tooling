@@ -1,0 +1,35 @@
+======================================================================
+Q: We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?
+======================================================================
+
+Q3 ship is almost certainly not real. The 2025 exploration that killed this exact expansion left a three-gate checklist (server-side eligibility migration, UDAAP review kicked off, current risk modeling) and as of May 2026 none of the three are done. Server-side migration alone is sized at 4 sprints with no eng capacity assigned, and UDAAP is 6-8 weeks and hasn't started. Push back on the Q3 commitment before you inherit the blame for missing it.
+
+⚠ WARNING
+You are about to re-run the 2025 expansion conversation without checking the three gates the last PM left as a literal checklist on his way out the door. If you commit to Q3 in a steering meeting before PLAN-1893, COMP-2026-44, and RISK-1102 are all green, you are signing up to either (a) miss the date publicly, (b) ship with a client-side eligibility gate and create the next P0 incident the 2025-10 postmortem already predicted, or (c) ship without UDAAP cover. Make leadership pick which one before you nod yes.
+
+CONTEXT YOU NEED
+This expansion was explored and explicitly killed in 2025-Q3 (S. Kowalski's last doc before departure). The kill reasons were not soft — loss rate modeled at ~2.4x Premier for the Standard segment, +14 FTE servicing with no budget, mobile eligibility check still client-side (so any tier expansion requires either a forced app update or server-side migration), and UDAAP review not started. The doc explicitly says: 'Any future expansion conversation must START with (a) is the mobile gate server-side yet, (b) is UDAAP kicked off, (c) is risk modeling current. Without all three, Q+1 ship is not real.' Wendell apparently re-committed to expansion in Q3 without resolving any of the three. Also worth knowing: VOC-2026-01-77 explicitly says FlexPay is functioning as a Premier retention tool — there's a real strategic question whether diluting it to Standard hurts the Premier value prop.
+
+WHAT'S BEEN TRIED
+  • 2024-Q3: PLAN-1247 filed to move eligibility server-side. Bumped twice (Standard exploration, then fraud signup work), closed Won't-Do in 2025-09. Refiled as PLAN-1893 in 2026-04, still needs eng capacity.
+  • 2025-Q3: Full Standard expansion exploration. Killed for risk, servicing cost, mobile gate, and UDAAP reasons.
+  • 2025-10: UIWebView in FlexPay flow caused a P0 crash incident (postmortem explicitly warns that the unfixed server-side eligibility issue 'will be next year's incident'). That warning is now this year.
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. Dependencies: Aiko Tanaka (mobile / PLAN-1893), Brett Holloway (UDAAP / COMP-2026-44, not started), Sasha Pereira with Dana Liu oversight (risk refresh / RISK-1102, in progress with wide CIs expected for thin-file 18-24).
+
+OPEN RISKS
+  • PLAN-1893 (server-side eligibility) is the critical path. 4 sprints, no eng assigned. Until this ships you cannot gate eligibility by tier without a forced app update — and the mobile client-side check is the same pattern that caused the Oct 2025 P0.
+  • COMP-2026-44 UDAAP review not kicked off. 6-8 weeks minimum. If Q3 means July-Sept, this alone makes the date implausible.
+  • RISK-1102 delinquency refresh for 18-24 is in progress but Sasha already flagged thin-file data will produce wide confidence intervals. The prior 2.4x loss rate finding has not been refuted yet.
+  • Servicing capacity: prior projection was +14 FTE with no budget approved. No evidence in corpus that this has been re-scoped or funded.
+  • UX landmine still live: MOBILE-3201 (eligibility entry point shown to ineligible tiers, then failing post-tap) was never fixed. Expanding to Standard without fixing this guarantees a repeat of VOC-2025-11-403-style complaints, just inverted.
+  • Strategic risk: VOC data suggests FlexPay is a Premier retention lever. Expanding to Standard may erode that without a clear offsetting acquisition story.
+  • MOBILE-3402 (other UIWebView usage) still open — adjacent tech debt in the same app.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - prds/2025_fraud_signup_friction.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

@@ -17,13 +17,13 @@ Both call `claude-opus-4-7` with adaptive thinking. The productized form isn't s
 
 ## Tool-surface coverage matrix
 
-| Component | 1: Meeting Killer | 2: PM Memory | 3: Cross-Team | 4: Oncall Companion | Where it lives |
-|---|---|---|---|---|---|
-| **Skill** | `meeting-killer` | `pm-memory` | `cross-team` | `oncall-companion` | `.claude/skills/*/SKILL.md` |
-| **Slash command** | `/meeting-killer` | `/pm-memory` | `/cross-team` | `/oncall` | `.claude/commands/*.md` |
-| **Subagent** | — | `pm-historian` | `cross-team-integrator` | `oncall-companion` | `.claude/agents/*.md` |
-| **MCP server (local data)** | — | `pm-memory` | `team-registry` | — | `mcp_servers/*/server.ts` |
-| **MCP server (live API)** | `slack` + `jira` (writes) | `slack` + `jira` (reads) | `slack` + `jira` (reads) | `slack` + `jira` (reads) | `mcp_servers/{slack,jira}/server.ts` |
+| Component | 1: Meeting Killer | 2: PM Memory | 3: Cross-Team | 4: Oncall Companion | 5: PR Reviewer | Meta: Orchestrator | Where it lives |
+|---|---|---|---|---|---|---|---|
+| **Skill** | `meeting-killer` | `pm-memory` | `cross-team` | `oncall-companion` | `pr-reviewer` | — | `.claude/skills/*/SKILL.md` |
+| **Slash command** | `/meeting-killer` | `/pm-memory` | `/cross-team` | `/oncall` | `/pr-review` | `/launch` | `.claude/commands/*.md` |
+| **Subagent** | — | `pm-historian` | `cross-team-integrator` | `oncall-companion` | `pr-reviewer` | `orchestrator` | `.claude/agents/*.md` |
+| **MCP server (local data)** | — | `pm-memory` | `team-registry` | — | — | uses others | `mcp_servers/*/server.ts` |
+| **MCP server (live API)** | `slack` + `jira` (writes) | `slack` + `jira` + `confluence` (reads) | `slack` + `jira` (reads) | `slack` + `jira` + `grafana` + `confluence` (reads) | `github` (read + DRY_RUN comment) | All of the above | `mcp_servers/{slack,jira,github,confluence,grafana}/server.ts` |
 | **Hook (PostToolUse)** | transcript-detection on `Write` | — | — | — | `.claude/settings.json` |
 | **Hook (PreToolUse)** | Jira write gate | Jira write gate | Jira write gate | Jira write gate | `.claude/hooks/gate-jira-writes.mjs` |
 | **Plugin manifest** | bundled | bundled | bundled | bundled | `.claude-plugin/plugin.json` |

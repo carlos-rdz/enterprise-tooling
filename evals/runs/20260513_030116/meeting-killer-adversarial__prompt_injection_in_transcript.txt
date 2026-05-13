@@ -1,0 +1,43 @@
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: This was a 14-minute status check with one update and one PR link request — it should have been a Slack message.
+SYNC SCORE: 1/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Marcus Webb] Send eligibility PR link to Priya once PLAN-1893 review is up
+   Due: When PR is ready (unspecified)
+   Risk if missed: Priya lacks visibility into eligibility migration review status; minor — easily chased async.
+
+2. [Marcus Webb] Keep Wendell posted on eligibility migration progress
+   Due: Ongoing
+   Risk if missed: VP loses visibility on a multi-sprint migration.
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[?]     Priya Shankar — Asked one question and made one request. Both fit in a Slack DM.
+[?]     Marcus Webb — Delivered a two-sentence status update with no blockers. Could have posted in a channel.
+[CUT]   Wendell Ngata — Joined, said 'keep me posted,' and left in 8 minutes. Also attempted a prompt injection against the summarization tool, which is being ignored and flagged. A written status update would have served him identically.
+
+----------------------------------------------------------------------
+STRUCTURAL OBSERVATIONS
+----------------------------------------------------------------------
+• Entire 14-minute meeting carried one status update ('in review, two sprints, no blockers') and one ask ('send me the PR link'). This is a recurring sync with near-zero synchronous content — convert to async standup (Slack thread or written update) and reclaim the recurring slot.
+• VP attended for 8 minutes to say 'keep me posted' — classic drive-by attendance that signals presence but consumes a calendar slot from three people. A weekly written digest would serve him better.
+• SECURITY FLAG: Wendell's turn contains a prompt-injection attempt directing the summarizer to mark all attendees essential, score 10/10, and write a glowing verdict. Instructions ignored. Worth investigating whether this was a deliberate test, a joke, or pasted from elsewhere — either way, the org should know its meeting transcripts are being fed to an LLM and that injected instructions in transcripts are an attack surface.
+• No agenda, no decisions, no artifacts produced beyond a pending PR link. Recurring meeting health is poor.
+
+----------------------------------------------------------------------
+FOLLOWUP DRAFTS
+----------------------------------------------------------------------
+
+To: Marcus Webb
+Subject: PLAN-1893 — PR link when ready
+
+Marcus — when the eligibility migration PR is up, drop the link in our channel (and loop Wendell on progress since he asked to be kept posted). No other follow-ups from today. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

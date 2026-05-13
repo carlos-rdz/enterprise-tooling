@@ -1,0 +1,49 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       3
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — S3 key has no timestamp; each nightly run overwrites the previous snapshot
+  File:     risk/snapshot.py
+  Issue:    The upload target is a fixed key `snapshots/{table}.csv`. A nightly cron will therefore replace yesterday's snapshot with today's, leaving exactly one version in the bucket at any time. The PR description says this feeds offline backtests, which generally need a historical series of snapshots — once this lands, prior days' data is destroyed every night and unrecoverable unless S3 versioning happens to be enabled on the bucket (not shown). This is a data-loss-by-overwrite hazard.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a date (or run-id) in the key, e.g. `f"snapshots/{run_date:%Y-%m-%d}/{table}.csv"`, and/or verify the bucket has versioning enabled and a lifecycle policy.
+
+🟠 MAJOR — Cursor is never closed; connection-pool exhaustion under repeated runs
+  File:     risk/snapshot.py
+  Issue:    `db_pool.cursor()` is called once per table inside the loop and never closed (no context manager, no `cursor.close()`, no try/finally). Per-invocation this leaks 4 cursors; under repeated invocation (this is a cron job that will run forever) or if the underlying pool returns connections checked out with the cursor, this will exhaust the pool. Also `fetchall()` on entire tables like `members`/`signups` should at minimum be paired with deterministic cursor cleanup.
+  Evidence: cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Use `with db_pool.cursor() as cursor:` (or wrap in try/finally with `cursor.close()`), and consider streaming via `fetchmany` for large tables.
+
+🟠 MAJOR — No snapshot isolation across tables — cross-table referential inconsistency
+  File:     risk/snapshot.py
+  Issue:    Each table is read on a fresh cursor in sequence with no shared transaction / repeatable-read snapshot. Between reading `members` and reading `signups`/`delinquencies`, the live OLTP store will mutate, producing a snapshot where (e.g.) a delinquency references a member_id that does not appear in the members snapshot. Backtests that join across these tables will silently get wrong answers.
+  Evidence: for table in TABLES:
+        cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Open a single connection, `BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ` (or SERIALIZABLE), and run all four SELECTs against that one transaction so they share a consistent snapshot.
+
+🟡 MINOR — CSV is written with no header row
+  File:     risk/snapshot.py
+  Issue:    `writer.writerows(rows)` writes only the tuples returned by the cursor; the column names from `cursor.description` are dropped. Downstream backtest code must hardcode column order and will silently misalign if the schema changes (column added/reordered).
+  Evidence: writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      Emit a header from `cursor.description` first, or write a manifest alongside the CSV pinning the column order.
+
+🟡 MINOR — Local /tmp file is never cleaned up
+  File:     risk/snapshot.py
+  Issue:    `/tmp/{table}.csv` is written but never removed. On a long-lived cron host this slowly fills /tmp; also if two runs overlap they will race on the same path.
+  Evidence: path = Path(f"/tmp/{table}.csv")
+  Fix:      Use `tempfile.NamedTemporaryFile(delete=True)` or `tempfile.TemporaryDirectory()`, or `path.unlink(missing_ok=True)` after upload.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ SQL injection: `TABLES` is a hardcoded module-level constant, so the f-string interpolation into the query is not attacker-controlled.
+  ✓ Hardcoded credentials: none present; boto3 client uses ambient credential resolution.

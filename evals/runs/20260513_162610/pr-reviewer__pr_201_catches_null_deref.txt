@@ -1,0 +1,25 @@
+======================================================================
+PR Review: #201 — Add servicing-side helper for cardmember lookup
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Unguarded None return from cardmember_svc.lookup will crash on unknown external_id
+  File:     servicing/cm_helper.py
+  Issue:    `cardmember_svc.lookup(external_id)` is called and its result is immediately dereferenced via `member.tier` and `member.products`. The diff gives no guarantee that the client returns a non-None value for unknown/invalid external ids — a typical lookup-by-id client returns None (or raises) on miss. If lookup returns None, this helper will raise AttributeError. The function signature accepts any string, so callers in SVC-3411 / FRAUD-1120 can easily hit this with an unknown id (e.g. for the FRAUD signal, the whole point is checking whether a relationship exists).
+  Evidence: member = cardmember_svc.lookup(external_id)
+    return {
+        "tier": member.tier,
+  Fix:      Handle the not-found case explicitly: either `if member is None: return {"tier": None, "products": []}` (or a sentinel), or document/enforce that lookup raises a typed NotFound and let callers handle it. Don't blind-deref the result.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No SQL or shell injection surface — call is delegated to a typed client.
+  ✓ No secrets in code.
+  ✓ No resource handles opened in this function, so no leak risk.
+  ✓ List comprehension's `if p.active` filter is correct (assuming products is iterable and non-None — see finding above).

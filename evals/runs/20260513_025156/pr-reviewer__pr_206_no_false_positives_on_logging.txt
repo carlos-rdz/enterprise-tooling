@@ -1,0 +1,34 @@
+======================================================================
+PR Review: #206 — Emit structured log when oncall pager is acked
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       1
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — Unguarded None deref on pager.get() result will crash ack endpoint
+  File:     oncall/api.py
+  Issue:    `pager.get(page_id)` is called but its return value is never checked for None before accessing `page.created_at`. If `get()` can return None for an unknown/expired page_id (typical for a `.get` accessor), this raises AttributeError. Worse, `pager.set_ack(...)` is called *before* the log statement, so the ack side-effect succeeds but the endpoint returns 500 — the client will likely retry, and observability data (MTTA) will be missing for exactly the cases the log was added to capture. Cannot mechanically prove from the diff that `pager.get` is exhaustive.
+  Evidence: page = pager.get(page_id)
+    pager.set_ack(page_id, actor=actor)
+    log.info(
+        "pager_ack",
+        extra={
+            ...
+            "time_to_ack_seconds": (now() - page.created_at).total_seconds(),
+  Fix:      Guard the None case, e.g. `if page is None: return AckResult(...)` (or raise a typed NotFound before set_ack), and/or wrap the log emission in a try/except so an observability bug can never fail an ack. Also consider moving `set_ack` after the None check so unknown page_ids don't mutate state.
+
+🟡 MINOR — time_to_ack uses wall-clock `now()` vs stored `created_at` without tz/source guarantees
+  File:     oncall/api.py
+  Issue:    `(now() - page.created_at).total_seconds()` will raise TypeError if one side is naive and the other tz-aware, and can go negative if clocks drift between the pager service and this service. Not a crash on the happy path, but worth a clamp/guard since this value feeds SRE MTTA dashboards.
+  Evidence: "time_to_ack_seconds": (now() - page.created_at).total_seconds(),
+  Fix:      Normalize both to UTC-aware datetimes and `max(0.0, delta.total_seconds())`, or compute in the pager service which owns `created_at`.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ No secret material or PII beyond `actor`/`page_id` added to the log
+  ✓ No SQL or shell construction introduced
+  ✓ Logging happens after the state mutation, so a logging exception cannot drop the ack itself (though it can still surface as a 500 to the caller — see major finding)

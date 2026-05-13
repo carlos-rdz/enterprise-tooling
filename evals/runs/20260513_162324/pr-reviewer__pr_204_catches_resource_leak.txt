@@ -1,0 +1,44 @@
+======================================================================
+PR Review: #204 — Add scheduled snapshotter for risk-model feature store
+======================================================================
+
+Verdict:          REQUEST CHANGES
+Bugs found:       2
+Severity ceiling: major
+
+FINDINGS
+----------------------------------------------------------------------
+
+🟠 MAJOR — S3 key has no date/timestamp — every nightly run overwrites the prior snapshot
+  File:     risk/snapshot.py
+  Issue:    The S3 object key is a fixed path per table (snapshots/{table}.csv) with no date or run-id. Each nightly run silently overwrites the previous day's snapshot, so the offline backtest history the PR description claims this enables (RISK-1102) does not actually exist — only the most recent night is retrievable. This is a data-loss class issue for the stated use case.
+  Evidence: s3.upload_file(str(path), BUCKET, f"snapshots/{table}.csv")
+  Fix:      Include a date (or ISO timestamp / run id) in the key, e.g. f"snapshots/{run_date:%Y-%m-%d}/{table}.csv", so each night's snapshot is preserved and addressable point-in-time.
+
+🟠 MAJOR — Database cursors are never closed (resource leak across the loop)
+  File:     risk/snapshot.py
+  Issue:    A new cursor is acquired from db_pool on every loop iteration but never closed or used as a context manager. Under repeated nightly invocations in a long-lived process — and even within a single run across the 4 tables — cursors/connections accumulate on the pool. Depending on the pool implementation this will eventually exhaust connections.
+  Evidence: cursor = db_pool.cursor()
+        cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Use `with db_pool.cursor() as cursor:` (or explicit try/finally with cursor.close()) so the cursor is released each iteration.
+
+🟡 MINOR — Local /tmp CSVs are never cleaned up
+  File:     risk/snapshot.py
+  Issue:    The temp file written under /tmp is left on disk after upload. Across nightly runs and multiple tables this is bounded but unnecessary; under containerized deployments with small tmpfs it can pressure disk. Also no header row is written to the CSV, which will hurt downstream backtest tooling that expects column names.
+  Evidence: path = Path(f"/tmp/{table}.csv")
+        with path.open("w") as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+  Fix:      Use tempfile.NamedTemporaryFile (or os.unlink after upload) and write cursor.description column names as the first CSV row.
+
+🟡 MINOR — SELECT * with f-string table interpolation
+  File:     risk/snapshot.py
+  Issue:    TABLES is a hardcoded module constant so this is not exploitable today, but f-string SQL with `SELECT *` is fragile: a future contributor extending TABLES from config/env would introduce SQLi, and `SELECT *` makes the CSV column order schema-dependent and silently shifts when columns are added/reordered.
+  Evidence: cursor.execute(f"SELECT * FROM {table}")
+  Fix:      Validate table names against an allow-list before interpolation (defense in depth) and enumerate explicit columns per table so snapshot schema is stable.
+
+VERIFIED SAFE
+----------------------------------------------------------------------
+  ✓ TABLES is a module-level constant of literals, so the f-string SQL is not currently an injection vector
+  ✓ boto3 client picks up credentials from the standard provider chain — no secret material in code
+  ✓ print() to stdout is fine for a cron job captured by the scheduler's log pipeline (flagged only as minor style, omitted)

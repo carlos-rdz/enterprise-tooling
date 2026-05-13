@@ -1,0 +1,22 @@
+{
+  "number": 205,
+  "title": "Add type hints to flexpay.fees module",
+  "author": "priya.shankar",
+  "base": "main",
+  "head": "priya/flexpay-types",
+  "state": "open",
+  "labels": ["chore", "types"],
+  "description": "Adds full type hints to flexpay.fees. No behavior change. mypy strict passes on this module after the change.",
+  "planted_bug": {
+    "exists": false,
+    "kind": null,
+    "severity": null,
+    "summary": "Clean refactor. A pr-reviewer that flags this as buggy is producing false positives."
+  },
+  "files": [
+    {
+      "path": "flexpay/fees.py",
+      "diff": "@@ -10,6 +10,8 @@\n FLAT_FEE_TABLE = {\n     (3,): 0.99,\n     (6,): 1.49,\n     (12,): 1.99,\n }\n \n-def compute_fee(amount, term_months):\n-    return amount * FLAT_FEE_TABLE.get((term_months,), 0.0) / 100.0\n+def compute_fee(amount: float, term_months: int) -> float:\n+    return amount * FLAT_FEE_TABLE.get((term_months,), 0.0) / 100.0\n"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Runtime deps for the Python raw-form agents + eval runner.
+anthropic==0.101.0
+pydantic==2.13.4
+pyyaml==6.0.3
+
+# Dev deps for tests + type checking. Pinned to latest stable as of repo init.
+pytest==9.0.3
+pytest-mock==3.15.1
+mypy==1.20.2
+types-PyYAML==6.0.12.20260510

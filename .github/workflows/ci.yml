@@ -8,7 +8,7 @@ on:
 
 jobs:
   typescript:
-    name: TypeScript typecheck + MCP smoke tests
+    name: TypeScript typecheck + tests + MCP smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,10 +16,11 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - name: install
-        run: npm ci
+      - run: npm ci
       - name: typecheck
         run: npx tsc --noEmit
+      - name: vitest
+        run: npm test
       - name: smoke-test all 4 MCP servers in synthetic mode
         run: |
           set -e
@@ -29,7 +30,7 @@ jobs:
               '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
               '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
               '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-              | npx tsx mcp_servers/$srv/server.ts \
+              | LOG_LEVEL=error npx tsx mcp_servers/$srv/server.ts \
               | tee /tmp/$srv.out \
               | grep -q '"tools":\[' \
               && echo "$srv: tools/list OK" \
@@ -38,7 +39,7 @@ jobs:
           done
 
   python:
-    name: Python syntax + import checks
+    name: Python typecheck + tests + golden validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,40 +47,31 @@ jobs:
         with:
           python-version: "3.13"
       - name: install deps
-        run: pip install anthropic pydantic pyyaml
-      - name: compile-check every agent
-        run: |
-          set -e
-          for f in 01_meeting_killer/agent.py 02_pm_memory/agent.py 03_cross_team/agent.py 04_oncall_companion/agent.py evals/run.py; do
-            python -c "import ast, sys; ast.parse(open('$f').read()); print('$f: syntax OK')"
-          done
-      - name: import-check (agents don't need API key just to import)
-        run: |
-          set -e
-          python -c "
-          import importlib.util, sys
-          for f in ['01_meeting_killer/agent.py','02_pm_memory/agent.py','03_cross_team/agent.py','04_oncall_companion/agent.py','evals/run.py']:
-              spec = importlib.util.spec_from_file_location('mod', f)
-              mod = importlib.util.module_from_spec(spec)
-              # Don't run main; just compile the module body so we catch top-level import errors.
-              with open(f) as fh:
-                  compile(fh.read(), f, 'exec')
-              print(f'{f}: compile OK')
-          "
+        run: pip install -r requirements.txt
+      - name: mypy strict (_shared + evals)
+        run: python -m mypy
+      - name: mypy strict (per-agent)
+        run: bash scripts/typecheck-agents.sh
+      - name: pytest
+        run: python -m pytest tests/python -q
       - name: validate golden YAMLs
         run: |
           python -c "
-          import yaml, pathlib
+          import yaml, pathlib, sys
+          ok = True
           for p in pathlib.Path('evals/golden').glob('*.yaml'):
               data = yaml.safe_load(p.read_text())
-              assert 'cases' in data, f'{p} missing cases'
+              if 'cases' not in data or not isinstance(data['cases'], list):
+                  print(f'::error::{p}: missing or malformed cases', file=sys.stderr); ok = False; continue
               for c in data['cases']:
-                  assert 'id' in c and 'must_have' in c, f'malformed case in {p}'
+                  if 'id' not in c or 'must_have' not in c:
+                      print(f'::error::malformed case in {p}', file=sys.stderr); ok = False
               print(f'{p.name}: {len(data[\"cases\"])} cases OK')
+          sys.exit(0 if ok else 1)
           "
 
   hooks:
-    name: Hook smoke tests
+    name: PreToolUse / PostToolUse hook smoke tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -1,0 +1,55 @@
+# Eval cases for the oncall-companion agent.
+#
+# Memory makes deterministic eval tricky — prior runs leave artifacts that
+# affect later runs. The runner resets `.memory/` to a known seeded state
+# before each case. Seed state goes in `_setup` and matches what would
+# realistically be in memory after one or two prior on-call shifts.
+
+cases:
+  - id: first_biometric_page_no_memory
+    description: >
+      First-page scenario: empty memory. The agent should triage the page,
+      not pretend to recall prior incidents that don't exist, and write a
+      new memory note so the next page can pattern-match.
+    _setup:
+      reset_memory: true
+    page: |
+      PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+      for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+    must_have:
+      - "Acknowledges this is the first occurrence (empty memory / no prior pages)."
+      - "Identifies the affected service and downstream impact (FlexPay plan creation)."
+      - "Suggests a concrete next step — mitigate, escalate, or record — not generic 'investigate further'."
+      - "Indicates that a memory note WAS written (the agent should report writing to memory, even if the harness doesn't verify the bytes)."
+    must_not_have:
+      - "Claims to recall prior incidents that don't exist in the empty-memory setup."
+      - "Vague 'check the logs and escalate as needed' response with no specific action."
+
+  - id: recurring_biometric_page_with_memory
+    description: >
+      Second-page scenario: memory already contains one biometric latency
+      incident from 2 weeks earlier. The agent should pattern-match and
+      escalate, not just mitigate-and-move-on.
+    _setup:
+      reset_memory: true
+      seed_files:
+        "/memories/incidents/2026-04-29__auth-service__biometric-latency.md": |
+          # 2026-04-29 — auth-service biometric latency spike
+          PD alert: /v1/biometric/validate p99 1.4s for 8 min. Mitigated, root cause unconfirmed.
+          Suspected noisy-neighbor on legacy biometric shared lib node pool. Filed AUTH-590.
+        "/memories/patterns/biometric-latency.md": |
+          # biometric-latency
+          Observed 2026-04-29 on auth-service /v1/biometric/validate. Mitigation: auto-recovered.
+          Hypothesis: legacy biometric shared library is capacity-constrained as
+          mobile-platform and FlexPay have ramped usage.
+    page: |
+      PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+      Affected: FlexPay plan creation. Started 03:32 ET tonight.
+    must_have:
+      - "Pattern-matches against the prior 2026-04-29 incident from memory."
+      - "Names this as the second (or N≥2) occurrence of the biometric-latency pattern."
+      - "Recommends escalating to a structural conversation (e.g. prioritizing AUTH-455 / centralized biometric service) rather than just mitigating."
+      - "Cites the specific memory paths it drew from."
+    must_not_have:
+      - "Treats this as a fresh first-occurrence incident with no prior context."
+      - "Suggests only 'restart the service' or other reactive-only response without naming the recurring pattern."

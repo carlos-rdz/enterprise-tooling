@@ -24,6 +24,11 @@ from pathlib import Path
 import anthropic
 from pydantic import BaseModel, Field
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _shared.logging_setup import get_logger  # noqa: E402
+
+log = get_logger("pm-memory")
+
 MODEL = "claude-opus-4-7"
 
 SYSTEM = """You are the institutional memory for an enterprise product team.
@@ -84,7 +89,10 @@ def ask(corpus: str, question: str) -> PMAnswer:
         messages=[{"role": "user", "content": question}],
         output_format=PMAnswer,
     )
-    return response.parsed_output
+    parsed = response.parsed_output
+    if parsed is None:
+        raise RuntimeError("model returned no parsed output — check stop_reason and rerun")
+    return parsed
 
 
 def render(question: str, a: PMAnswer) -> str:
@@ -121,7 +129,7 @@ def render(question: str, a: PMAnswer) -> str:
 
 def main() -> int:
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("set ANTHROPIC_API_KEY", file=sys.stderr)
+        log.error("ANTHROPIC_API_KEY not set")
         return 1
 
     corpus_dir = Path(__file__).parent / "corpus"
@@ -130,9 +138,9 @@ def main() -> int:
         or "We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?"
     )
 
-    print(f"loading corpus from {corpus_dir}...", file=sys.stderr)
+    log.info("loading corpus", extra={"path": str(corpus_dir)})
     corpus = load_corpus(corpus_dir)
-    print(f"corpus loaded ({len(corpus)} chars). asking...\n", file=sys.stderr)
+    log.info("corpus loaded", extra={"chars": len(corpus), "question": question})
     answer = ask(corpus, question)
     print(render(question, answer))
     return 0

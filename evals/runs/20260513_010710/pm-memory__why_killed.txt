@@ -1,0 +1,33 @@
+======================================================================
+Q: Why was FlexPay Standard expansion killed last year?
+======================================================================
+
+FlexPay Standard expansion was killed in Q3 2025 for four reasons: (1) risk modeling showed loss rates ~2.4x Premier for the thinner-file Standard segment, (2) servicing volume required 14 unbudgeted FTE, (3) the mobile eligibility check is still client-side, so any tier expansion requires either a forced app update or a 4-sprint server-side migration that had been bumped twice, and (4) UDAAP review (6-8 weeks) was never kicked off. S. Kowalski's exit note explicitly said any future expansion conversation must start by confirming server-side gating, UDAAP kickoff, and current risk modeling — none of which were true then.
+
+⚠ WARNING
+If you're asking because you're being pulled into the Q3 expansion conversation: the same three blockers that killed this in 2025 are still not cleared. UDAAP hasn't started (6-8 weeks minimum), server-side migration has no eng capacity (4 sprints), and the refreshed risk model isn't in yet. S. Kowalski's killed-exploration doc literally said 'Q+1 ship is not real' without these three. Do not let a Q3 commitment get socialized as on-track until all three are green — you will own the slip, and worse, you'll ship a Standard rollout on top of a client-side eligibility gate that's already generating negative VOC.
+
+CONTEXT YOU NEED
+This is not a dead topic — it's been reopened. Per PLAN-1893 (April 2026), Aiko refiled the server-side migration ticket citing 'Wendell's Q3 expansion commitment.' RISK-1102 has Sasha pulling fresh delinquency data for the 18-24 segment as of May 2026, and COMP-2026-44 shows the UDAAP review is still 'Not Started' with Brett Holloway as owner. So leadership has committed to a Q3 expansion read but the three preconditions S. Kowalski explicitly called out are at best partially in motion. Also note: FlexPay is functioning as a Premier retention lever (VOC-2026-01-77 — 'this is why I keep Premier'), so expansion has a positioning cost beyond the operational blockers.
+
+WHAT'S BEEN TRIED
+  • 2025-Q3 exploration: full Standard expansion scoped, killed due to risk/servicing/tech/compliance blockers (see 2025_plan_it_gold_explore.md).
+  • PLAN-1247 (server-side eligibility migration): filed 2024-09, bumped twice (Standard exploration, then fraud signup work), closed Won't Do in 2025-09. Now reopened as PLAN-1893 in April 2026, still needs eng capacity.
+  • Risk modeling for thin-file segment: prior model showed 2.4x loss rate. RISK-1102 is refreshing this now; Sasha has flagged wide CIs expected due to thin-file data.
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. The expansion preconditions are split: PLAN-1893 (server-side migration) — Priya, needs eng capacity; RISK-1102 (risk model refresh) — Sasha Pereira under Dana Liu; COMP-2026-44 (UDAAP) — Brett Holloway, not started.
+
+OPEN RISKS
+  • UDAAP review has not been kicked off and takes 6-8 weeks. If Q3 expansion is real, this is already on the critical path and likely slipping.
+  • Server-side eligibility migration is sized at 4 sprints with no eng capacity assigned. The 2025 mobile postmortem explicitly warned this 'will be next year's incident' — same tech-debt clock that turned UIWebView into a P0.
+  • Risk model refresh (RISK-1102) is in progress but Sasha has pre-flagged wide confidence intervals on the thin-file segment. Loss-rate read may not be conclusive enough to greenlight on Q3 timeline.
+  • Servicing FTE budget (14 heads in original projection) — no evidence this has been re-scoped or approved.
+  • Client-side eligibility check is still causing customer-facing UX failures TODAY (VOC-2025-11-403, MOBILE-3201 never fixed). The 'not eligible' button-then-fail experience will get worse, not better, with Standard rollout if migration doesn't ship first.
+  • Strategic tension: FlexPay is currently a Premier retention tool. Expanding to Standard may dilute that positioning — no one has written down how leadership is thinking about that trade-off.
+
+CITATIONS
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2024_plan_it_launch.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md (PLAN-1247, PLAN-1893, RISK-1102, COMP-2026-44, MOBILE-3402)
+  - convos/customer_calls.md (VOC-2025-11-403, VOC-2026-01-77)

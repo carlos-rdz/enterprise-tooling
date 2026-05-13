@@ -21,6 +21,11 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _shared.logging_setup import get_logger  # noqa: E402
+
+log = get_logger("meeting-killer")
+
 MODEL = "claude-opus-4-7"
 
 SYSTEM = """You are an analyst whose job is to make meetings die faster.
@@ -67,6 +72,7 @@ class MeetingAnalysis(BaseModel):
 
 
 def analyze_meeting(transcript: str) -> MeetingAnalysis:
+    log.info("calling Claude", extra={"model": MODEL, "transcript_chars": len(transcript)})
     client = anthropic.Anthropic()
     response = client.messages.parse(
         model=MODEL,
@@ -91,7 +97,19 @@ TRANSCRIPT:
         ],
         output_format=MeetingAnalysis,
     )
-    return response.parsed_output
+    usage = response.usage
+    log.info(
+        "claude responded",
+        extra={
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", 0),
+        },
+    )
+    parsed = response.parsed_output
+    if parsed is None:
+        raise RuntimeError("model returned no parsed output — check stop_reason and rerun")
+    return parsed
 
 
 def render(analysis: MeetingAnalysis) -> str:
@@ -160,7 +178,7 @@ def main() -> int:
         return 1
 
     transcript = transcript_path.read_text()
-    print(f"analyzing transcript ({len(transcript)} chars)...\n", file=sys.stderr)
+    log.info("analyzing transcript", extra={"path": str(transcript_path), "chars": len(transcript)})
     analysis = analyze_meeting(transcript)
     print(render(analysis))
     return 0

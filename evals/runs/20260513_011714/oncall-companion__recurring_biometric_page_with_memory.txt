@@ -1,0 +1,16 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+Affected: FlexPay plan creation. Started 03:32 ET tonight.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  Second occurrence in ~24h. Prior: `/memories/incidents/2026-04-29__auth-service__biometric-latency.md` (p99 1.4s for 8 min, auto-recovered, AUTH-590 filed) and `/memories/patterns/biometric-latency.md` (hypothesis: legacy biometric shared lib capacity-constrained as mobile-platform + FlexPay ramped). Tonight's signal — same endpoint, same shape, same downstream — confirms the pattern.
+SERVICE / IMPACT: auth-service `/v1/biometric/validate` is slow (p99 1.2s, sustained 5 min). Real-world impact: FlexPay customers can't complete plan creation at checkout — biometric step is in the critical path, so plan signups are stalling or timing out at 03:32 ET.
+LIKELY CAUSE:   Same as 04-29: legacy biometric shared library node pool is under-provisioned for combined mobile-platform + FlexPay traffic. Noisy-neighbor / capacity contention on shared compute. Not a code regression — a recurring capacity ceiling that auto-recovers when load drops.
+NEXT STEP:      (1) Check current /v1/biometric/validate latency now — if still elevated, fail FlexPay's biometric check open to a fallback path (3DS/OTP) for plan creation if that switch exists, or shed traffic from the noisier neighbor on the shared pool. (2) Page the auth-service owner now — this is the second hit, not a one-off. (3) Bump AUTH-590 to P1 in the morning handoff.
+ESCALATION:     2nd occurrence of `biometric-latency` pattern. Escalate AUTH-590 from "filed" to P1. Conversation to start at handoff: auth-service owner — choose between (a) isolating the biometric shared lib onto its own node pool with headroom, or (b) migrating FlexPay's biometric validation off the legacy validator. Owner: TBD (recorded in owners.md as a gap — confirm and fill in).
+NOTES WRITTEN:  `/memories/incidents/2026-04-30__auth-service__biometric-latency.md`, `/memories/patterns/biometric-latency.md` (appended 04-30 line + escalation note), `/memories/owners.md` (created, flagged auth-service owner as TBD).
+

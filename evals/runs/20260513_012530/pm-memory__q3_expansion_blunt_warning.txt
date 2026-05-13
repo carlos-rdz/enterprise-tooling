@@ -1,0 +1,35 @@
+======================================================================
+Q: We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?
+======================================================================
+
+Q3 ship is not real unless three things start this week: (1) server-side eligibility migration (4 sprints, no eng capacity assigned), (2) UDAAP review for the new segment (6-8 weeks, not kicked off), (3) refreshed risk model for the thin-file segment (in progress, wide CIs expected). This exact expansion was explored and killed in 2025-Q3 for the same three reasons plus servicing FTE. Nothing structural has changed since then except a leadership commitment from Wendell.
+
+⚠ WARNING
+You are about to commit to a Q3 ship on a program that was killed less than a year ago for reasons that are still 100% true today. The killed-exploration doc was written specifically to prevent this conversation from happening without preconditions in motion — read it before your next meeting with Wendell. If you say yes to Q3 without server-side eligibility, UDAAP kickoff, and a current risk model all started this week, you are signing up to either (a) miss the date publicly, (b) ship to a forced-app-update-only population, or (c) ship the known broken UX (MOBILE-3201) to your most price-sensitive segment and create a servicing and compliance incident. Push back on the date or scope it to a precondition-completion milestone, not a ship milestone.
+
+CONTEXT YOU NEED
+FlexPay launched 2024-Q2 as Premier-only with a client-side eligibility check explicitly logged as tech debt (ADR-0042). That tech debt has now bitten twice: it blocked the 2025 Standard expansion exploration, and a related shortcut (UIWebView in the same flow) became a P0 crash incident in Oct 2025 when iOS 18.2 dropped support. The 2025 killed-exploration doc explicitly lists the preconditions for any future expansion conversation — you are now in that conversation and the preconditions are still not met. Separately, FlexPay is currently functioning as a Premier retention driver (VOC-2026-01-77: 'this is why I keep Premier') — expanding to Standard has a strategic cost beyond the operational one.
+
+WHAT'S BEEN TRIED
+  • 2025-Q3 Standard expansion exploration (S. Kowalski): killed for (a) 2.4x loss rate at same plan terms, (b) 14 FTE servicing gap unfunded, (c) client-side eligibility gate blocks tier expansion without forced app update, (d) UDAAP review not started.
+  • PLAN-1247 (server-side eligibility migration): filed 2024-09, bumped three times, closed Won't Do in 2025-09. Refiled as PLAN-1893 in 2026-04 after Wendell's commitment — still needs eng capacity.
+  • Showing FlexPay entry point to all tiers and failing post-tap (MOBILE-3201): created the exact UX failure mode customers already complain about (VOC-2025-11-403). Never fixed. If you ship Standard without server-side gating, you scale this failure mode.
+
+OWNER TODAY: Priya Shankar owns FlexPay product. Aiko Tanaka owns mobile remediation. Sasha Pereira (with Dana Liu) owns the risk model refresh (RISK-1102). Brett Holloway owns UDAAP review (COMP-2026-44, not started). No single accountable owner for the Q3 expansion program itself yet — that gap is itself a risk.
+
+OPEN RISKS
+  • UDAAP review (COMP-2026-44) is not kicked off. At 6-8 weeks, starting today puts approval at the edge of Q3. Any finding extends it.
+  • Server-side eligibility migration (PLAN-1893) is sized at 4 sprints with no eng capacity assigned. Without it, you either force-update the app or ship the same client-side-eligibility UX failure to a larger, more price-sensitive segment.
+  • Risk model refresh (RISK-1102) will have wide confidence intervals on thin-file 18-24 segment. 2025 modeling showed 2.4x Premier loss rate — plan terms/fees may need to differ, which reopens compliance scope.
+  • Servicing capacity: 2025 projection was +14 FTE, never funded. No evidence this has been revisited.
+  • MOBILE-3402: three other flows still use UIWebView. Same vendor-deprecation clock as the 2025 incident. Expansion will increase volume through these flows.
+  • Strategic: FlexPay is a Premier retention hook per VOC. Standard expansion may dilute the 'why I keep Premier' narrative — no one has modeled the cannibalization.
+  • Process: the killed 2025 exploration doc states expansion conversations must START with the three preconditions. If you take a Q3 commitment without them in motion, you are repeating S. Kowalski's pattern verbatim.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - prds/2025_fraud_signup_friction.md
+  - convos/customer_calls.md
+  - tickets/tickets.md

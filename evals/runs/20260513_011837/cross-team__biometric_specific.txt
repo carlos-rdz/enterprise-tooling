@@ -1,0 +1,32 @@
+======================================================================
+Q: Who else is touching biometric auth right now?
+======================================================================
+
+# Biometric auth — who's in the kitchen right now
+
+Five teams. They are not aligned. Here's the live picture:
+
+| Team | Ticket | What they're doing | Status |
+|---|---|---|---|
+| **auth-platform** (Hiroshi Sato) | AUTH-455 | Re-architecting biometric into a centralized service. **Deprecates the legacy shared library.** ETA Q3. | In Progress |
+| **mobile-platform** (Aiko Tanaka) | MOBILE-3501 | FaceID step-up in FlexPay — **built on the legacy shared lib** Hiroshi is killing. Decision made without consulting auth-platform (per their own decision log, 2026-04). | In Progress |
+| **plan-it** (Marcus Webb / Priya Shankar) | PLAN-1925 | Biometric step-up on >$1000 plan creation. Priya committed to "coordinate with mobile-platform" in May — unclear if that happened. | In Progress |
+| **fraud-risk** (Dana Liu) | FRAUD-1120 | Wants biometric signal from auth for risk decisioning. "No formal alignment yet" with auth-platform. | Open, unassigned |
+| **compliance-engineering** | COMP-2026-51 | Privacy review for behavioral biometrics expansion, linked to fraud team. | In flight |
+
+## The 3 hidden dependencies that will bite
+
+1. **AUTH-455 deprecates the library MOBILE-3501 and PLAN-1925 are actively building on.** Two teams are shipping on a foundation the owning team is demolishing this quarter. Hiroshi flagged it in #auth-platform; nobody downstream has acknowledged.
+2. **plan-it and mobile-platform both implement "biometric step-up over $X"** — same UX pattern, two implementations, zero shared contract. Priya's stated coordination with mobile hasn't produced an artifact.
+3. **fraud-risk is blocked on auth-platform** for biometric signal exposure, and that signal shape is exactly what AUTH-455 is redefining. If fraud doesn't get into the AUTH-455 design review now, FRAUD-1120 gets re-scoped in Q4.
+
+## Talk to these people TODAY
+
+- **Hiroshi Sato (auth-platform)** — owns AUTH-455. He is the single point of truth on the new service contract and legacy-lib sunset date. Get the deprecation timeline in writing.
+- **Aiko Tanaka (mobile-platform)** — needs to know her FlexPay integration is on borrowed time. Decide: rework on the new service, or get a written legacy-lib extension.
+- **Priya Shankar (plan-it)** — she's the one who committed to mobile coordination. Loop her into the same conversation so PLAN-1925 and MOBILE-3501 don't fork.
+- **Dana Liu (fraud-risk)** — get her into the AUTH-455 design review before the signal schema freezes.
+
+## 🚨 The Q4 warning
+
+**If Hiroshi, Aiko, and Priya don't agree this week on whether MOBILE-3501 and PLAN-1925 ship on the legacy lib or wait for the AUTH-455 service, you will ship biometric step-up twice on a foundation that's being deleted — and you'll re-do all of it in Q4.** That's the single decision that determines whether biometric step-up lands in Q3 or slides.

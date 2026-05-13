@@ -1,0 +1,11 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+
+======================================================================
+TRIAGE
+======================================================================
+Logged. Ping back with what the vendor-time split shows — that's the fastest disambiguator.
+

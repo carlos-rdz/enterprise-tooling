@@ -1,22 +1,30 @@
 {
   "name": "enterprise-coordination",
-  "version": "0.1.0",
-  "description": "enterprise upstream-coordination AI tooling: meeting killer, PM domain memory, cross-team integrator. Built as a Claude Code plugin.",
+  "version": "0.3.0",
+  "description": "Enterprise upstream-coordination AI tooling: meeting killer, PM domain memory, cross-team integrator, oncall companion. Prod-grade Claude Code plugin with Slack + Jira MCP integrations.",
   "private": true,
   "type": "module",
   "scripts": {
     "mcp:pm-memory": "tsx mcp_servers/pm_memory/server.ts",
     "mcp:team-registry": "tsx mcp_servers/team_registry/server.ts",
-    "typecheck": "tsc --noEmit"
+    "mcp:slack": "tsx mcp_servers/slack/server.ts",
+    "mcp:jira": "tsx mcp_servers/jira/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "@slack/web-api": "^7.15.2",
-    "zod": "^3.23.0"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@slack/web-api": "7.15.2",
+    "pino": "10.3.1",
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "@types/node": "22.19.19",
+    "@vitest/coverage-v8": "4.1.6",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.6"
   }
 }

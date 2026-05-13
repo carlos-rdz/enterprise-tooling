@@ -1,0 +1,24 @@
+======================================================================
+Q: Who else is touching biometric auth right now?
+======================================================================
+
+# Biometric auth — four teams in collision course, nobody talking
+
+## The critical hidden dependencies
+
+1. **Auth-platform is deprecating the shared library that mobile-platform and plan-it are actively building on.** AUTH-455 (Hiroshi Sato) re-architects biometrics as a centralized service, killing the legacy shared lib in Q3. Meanwhile MOBILE-3501 (Aiko Tanaka, in-flight, embedded inline per an April decision *made without consulting auth-platform*) and PLAN-1925 (Marcus Webb) are both calling that legacy lib. Two teams are about to ship code on a dead API.
+
+2. **Fraud-risk needs a biometric signal from auth that hasn't been scoped.** FRAUD-1120 (reporter: Dana Liu, unassigned) requires biometric signal availability from auth-platform for step-up v2. Recent decisions log shows "no formal alignment yet" with auth — so AUTH-455's API surface needs to expose this, and right now nobody on auth knows it's a requirement.
+
+3. **Compliance has an open privacy review on behavioral biometrics (COMP-2026-51) linked to fraud — not auth, not mobile, not plan-it.** If mobile/plan-it ship biometric step-up flows without looping compliance in, you risk a privacy-review block at launch.
+
+## Talk to these people TODAY
+
+- **Hiroshi Sato (auth-platform, AUTH-455)** — owns the centralized service. He needs to know mobile + plan-it + fraud are all consumers, *now*, so the new API covers their cases.
+- **Aiko Tanaka (mobile-platform, MOBILE-3501)** — already committed inline. Get her to refactor to the new service interface or accept a forced migration in Q3.
+- **Priya Shankar (plan-it)** — per her own May decision log she committed to "coordinate with mobile-platform on biometric." She has not, as far as I can see, coordinated with auth-platform, which is the team that actually matters.
+- **Dana Liu (fraud-risk, FRAUD-1120)** — needs to formally land her signal requirement into AUTH-455 scope before it freezes.
+
+## The Q4-not-Q3 warning
+
+**If AUTH-455's service interface freezes this week without mobile, plan-it, and fraud's requirements baked in, you ship two products on a deprecated library and a third blocked waiting for a signal that won't exist.** Get Hiroshi, Aiko, Priya, and Dana in one room before Friday and lock the consumer contract for the new biometric service. Everything else is downstream of that one meeting.

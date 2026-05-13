@@ -26,6 +26,11 @@ from typing import Any
 
 import anthropic
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _shared.logging_setup import get_logger  # noqa: E402
+
+log = get_logger("cross-team")
+
 MODEL = "claude-opus-4-7"
 
 SYSTEM = """You are a cross-team integrator agent for enterprise engineering.
@@ -88,7 +93,7 @@ def load_teams(path: Path) -> dict[str, dict[str, Any]]:
 JIRA_ISSUES: list[dict[str, Any]] = [
     {"key": "PLAN-1893", "project": "PLAN", "status": "Open", "summary": "Move FlexPay eligibility check server-side", "assignee": None, "reporter": "Aiko Tanaka"},
     {"key": "PLAN-1925", "project": "PLAN", "status": "In Progress", "summary": "Add biometric step-up to plan creation flow (>$1000)", "assignee": "Marcus Webb", "reporter": "Priya Shankar"},
-    {"key": "MOBILE-3501", "project": "MOBILE", "status": "In Progress", "summary": "Integrate FaceID step-up into FlexPay mobile flow (using legacy shared lib)", "assignee": "Aiko Tanaka", "reporter": "Aiko Tanaka"},
+    {"key": "MOBILE-3501", "project": "MOBILE", "status": "In Progress", "summary": "Integrate FaceID biometric step-up into FlexPay mobile flow (using legacy biometric shared library)", "assignee": "Aiko Tanaka", "reporter": "Aiko Tanaka"},
     {"key": "MOBILE-3402", "project": "MOBILE", "status": "Open", "summary": "Audit + remediate remaining UIWebView usage", "assignee": None, "reporter": "Aiko Tanaka"},
     {"key": "AUTH-455", "project": "AUTH", "status": "In Progress", "summary": "Re-architect biometric service (centralized) — deprecates legacy shared lib, ETA Q3", "assignee": "Hiroshi Sato", "reporter": "Hiroshi Sato"},
     {"key": "AUTH-441", "project": "AUTH", "status": "In Progress", "summary": "Migrate legacy session token storage to vault-backed scheme (compliance-driven)", "assignee": "Hiroshi Sato", "reporter": "Hiroshi Sato"},
@@ -196,7 +201,13 @@ def run_tool(name: str, args: dict[str, Any], teams: dict[str, dict[str, Any]]) 
 
 def run_agent(question: str, teams: dict[str, dict[str, Any]]) -> None:
     client = anthropic.Anthropic()
-    messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
+    # The SDK's typed MessageParam union is awkward to satisfy in a manual
+    # tool-use loop where we append assistant content blocks back into the
+    # history. We construct dicts matching the wire shape; the API accepts
+    # them. This cast keeps mypy strict-happy without runtime cost.
+    messages: list[anthropic.types.MessageParam] = [
+        {"role": "user", "content": question}
+    ]
 
     print("=" * 70)
     print(f"Q: {question}")
@@ -217,7 +228,7 @@ def run_agent(question: str, teams: dict[str, dict[str, Any]]) -> None:
 
         for block in response.content:
             if block.type == "tool_use":
-                print(f"  [step {step}] → tool: {block.name}({json.dumps(block.input)})", file=sys.stderr)
+                log.info("tool call", extra={"step": step, "tool": block.name, "input": block.input})
 
         if response.stop_reason == "end_turn":
             for block in response.content:
@@ -226,15 +237,15 @@ def run_agent(question: str, teams: dict[str, dict[str, Any]]) -> None:
             return
 
         if response.stop_reason != "tool_use":
-            print(f"unexpected stop_reason: {response.stop_reason}", file=sys.stderr)
+            log.warning("unexpected stop_reason", extra={"stop_reason": response.stop_reason})
             return
 
         messages.append({"role": "assistant", "content": response.content})
 
-        tool_results: list[dict[str, Any]] = []
+        tool_results: list[Any] = []
         for block in response.content:
             if block.type == "tool_use":
-                result = run_tool(block.name, block.input, teams)
+                result = run_tool(block.name, dict(block.input) if isinstance(block.input, dict) else {}, teams)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -245,7 +256,7 @@ def run_agent(question: str, teams: dict[str, dict[str, Any]]) -> None:
 
 def main() -> int:
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("set ANTHROPIC_API_KEY", file=sys.stderr)
+        log.error("ANTHROPIC_API_KEY not set")
         return 1
 
     question = (
@@ -255,7 +266,7 @@ def main() -> int:
 
     teams_path = Path(__file__).parent / "team_data" / "teams.md"
     teams = load_teams(teams_path)
-    print(f"loaded {len(teams)} teams from {teams_path.name}\n", file=sys.stderr)
+    log.info("loaded teams", extra={"count": len(teams), "source": teams_path.name, "question": question})
     run_agent(question, teams)
     return 0
 

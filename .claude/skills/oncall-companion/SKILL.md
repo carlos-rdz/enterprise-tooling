@@ -38,7 +38,7 @@ If the input is a question rather than a page (e.g. "what do we know about biome
 
 ## Reference implementation
 
-The raw Anthropic SDK version is at [`04_oncall_companion/agent.py`](../../../04_oncall_companion/agent.py). It implements a filesystem-backed memory tool by subclassing `BetaAbstractMemoryTool` from the Anthropic SDK and uses `client.beta.messages.run_tools(...).until_done()` for the agentic loop. In Claude Code, the harness already provides a memory backend — this skill just uses it.
+The raw Anthropic SDK version is at [`04_oncall_companion/agent.py`](../../../04_oncall_companion/agent.py). It implements a filesystem-backed memory tool by subclassing `BetaAbstractMemoryTool` from the Anthropic SDK and uses `client.beta.messages.tool_runner(...).until_done()` for the agentic loop. In Claude Code, the harness already provides a memory backend — this skill just uses it.
 
 ## Slack / Jira integration
 

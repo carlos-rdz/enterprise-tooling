@@ -1,0 +1,24 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  First occurrence — memory empty for this signal. No prior entries under `/memories/incidents/` or `/memories/patterns/`. Treating as net-new.
+
+SERVICE / IMPACT:  auth-service, specifically the biometric validation endpoint (`POST /v1/biometric/validate`), is responding ~7× slower than baseline. Because biometric validation is a gating step in FlexPay plan creation, customers attempting to set up a FlexPay plan right now are either seeing visible UI slowness or hitting client-side timeouts and dropping out of the funnel. Revenue-adjacent flow.
+
+LIKELY CAUSE:  Top suspect at 03:32 ET is the upstream biometric vendor (face/ID match call) — latency on that hop dominates this endpoint and 03:30-ish is a common window for vendor-side maintenance. Second suspect: HPA scaled auth-service to its floor overnight and a burst hit cold pods. Third: a late-night deploy or cert rotation. The fact that the spike is isolated to one endpoint (not all of auth-service) points away from a host/pod issue and toward the vendor or a dependency specific to biometric (template store / face-match cache).
+
+NEXT STEP:  Pull the per-dependency latency breakdown for `/v1/biometric/validate` in the last 15 min — specifically the outbound call to the biometric vendor vs. internal DB/cache time. If vendor time is the dominant contributor, open the vendor status page and flip the biometric step to degraded-mode (skip + queue for async re-verify) if FlexPay supports it. In parallel, check `kubectl get hpa auth-service` and recent deploy log (last 2h). Page FlexPay on-call so they can decide whether to surface a softer error to users while we work.
+
+ESCALATION:  — first occurrence, no escalation yet. If this recurs in the 03:00–04:00 ET window or correlates again with FlexPay, that becomes a "biometric-vendor overnight latency" pattern and the conversation to start is with the auth-service owner about a circuit breaker + async-fallback path on this endpoint.
+
+NOTES WRITTEN:
+- `/memories/incidents/2024-XX-XX__auth-service__biometric-validate-p99-latency.md`
+- `/memories/owners.md`
+- `/memories/patterns/README.md`
+

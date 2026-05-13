@@ -1,0 +1,24 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  First occurrence — memory empty for this signal. No prior entries under /memories/incidents/ or /memories/patterns/. Seeded a new pattern file `auth-biometric-latency` so the next recurrence gets flagged automatically.
+
+SERVICE / IMPACT: auth-service's biometric validation endpoint is ~6.7x slower than baseline (p99 1.2s vs 180ms). Because that call sits in the synchronous critical path for FlexPay plan creation, customers trying to set up installment plans right now are either watching a spinner, timing out, or abandoning — revenue-impacting on the payments funnel.
+
+LIKELY CAUSE:   Most probable is the downstream biometric vendor degrading (latency-only, no error spike fits a slow upstream more than a code bug). Runners-up: a late-night auth-service or SDK deploy, HSM/crypto contention, or DB connection-pool exhaustion. Cleanly latency-shaped with no mention of 5xx points away from a crash/OOM.
+
+NEXT STEP:      Pull auth-service distributed traces for /v1/biometric/validate over the last 15 min and break down by span — specifically the vendor HTTP client span vs DB span vs HSM span. That isolates internal vs external in under 2 minutes. In parallel: (a) check the biometric vendor's status page, (b) check deploy log for auth-service in the last 24h, (c) confirm whether mobile-login (other caller of same endpoint) is also degraded — if yes it's the endpoint/vendor; if no it's FlexPay-shaped traffic. If vendor is the culprit, flip the FlexPay biometric step to the cached/recent-validation fallback if one exists, otherwise raise a Sev with payments lead before EU business hours.
+
+ESCALATION:     — first occurrence, no escalation yet. Pattern file seeded; if this repeats, the conversation to start is with auth-service + payments leads about a circuit breaker + cached-validation fast path so vendor latency stops taking down FlexPay.
+
+NOTES WRITTEN:
+- /memories/incidents/2024-01-15__auth-service__biometric-validate-p99-latency.md
+- /memories/patterns/auth-biometric-latency.md
+- /memories/owners.md
+

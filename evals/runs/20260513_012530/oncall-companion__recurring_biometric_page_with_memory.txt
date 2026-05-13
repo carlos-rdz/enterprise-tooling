@@ -1,0 +1,24 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+Affected: FlexPay plan creation. Started 03:32 ET tonight.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  **2nd occurrence.** See `/memories/patterns/biometric-latency.md` and prior incident `/memories/incidents/2026-04-29__auth-service__biometric-latency.md` — same endpoint (`/v1/biometric/validate`), same downstream (FlexPay plan creation), same off-hours timing profile. AUTH-590 was filed on the first occurrence with no RCA; it auto-recovered and got deprioritized.
+
+SERVICE / IMPACT: auth-service biometric validation is slow enough (p99 1.2s) that FlexPay plan creation is stalling or timing out for users mid-flow. Anyone trying to set up a payment plan right now is hitting a wall on the biometric step.
+
+LIKELY CAUSE: Capacity contention on the legacy biometric shared library node pool — same hypothesis as April 29. Both pages hit in off-hours, which points away from peak user load and toward batch/cron noisy-neighbor on the shared pool. Mobile-platform + FlexPay ramp has eaten the headroom.
+
+NEXT STEP: Check if it's already self-recovered (April's incident did in 8 min; this one is 5 min in). If still red at the 10-min mark, force a rollout/restart of the biometric pods to evict whatever's co-tenanted. In parallel, pull node-level CPU/mem and co-tenant pod list on the biometric node pool for the 03:25–03:35 window — that's the evidence AUTH-590 is missing.
+
+ESCALATION:  **2nd occurrence of the `biometric-latency` pattern.** Page auth-platform owner of AUTH-590 at start of business and reframe it: this is no longer a one-off, it's a recurring capacity issue with confirmed FlexPay blast radius. Conversation to open: dedicated node pool for the biometric shared lib, OR migrate FlexPay off the legacy path. Also: there is no p99 SLO/burn-rate alert on this endpoint — we keep discovering this via PD. Get one in place.
+
+NOTES WRITTEN:
+- `/memories/incidents/2026-XX-XX__auth-service__biometric-latency-recurrence.md`
+- `/memories/patterns/biometric-latency.md` (updated with 2nd occurrence + structural fix items)
+- `/memories/owners.md` (initialized)
+

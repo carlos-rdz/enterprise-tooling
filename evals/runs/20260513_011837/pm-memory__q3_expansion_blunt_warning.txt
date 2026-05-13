@@ -1,0 +1,35 @@
+======================================================================
+Q: We're being asked to ship FlexPay Standard expansion in Q3. What do I need to know?
+======================================================================
+
+Q3 ship is not real on the current dependency stack. The killed 2025 exploration listed three preconditions (server-side eligibility gate, UDAAP review kicked off, current risk modeling) — none are complete today. The server-side migration alone is sized at 4 sprints with no eng capacity confirmed, UDAAP is 6-8 weeks and not started, and the risk model refresh is mid-data-pull with wide CIs expected. If you commit to Q3 without fixing all three, you are repeating the exact mistake the 2025 explore doc warned the next PM about by name.
+
+⚠ WARNING
+The 2025 explore doc was written specifically so the next PM would not commit to a ship date before checking (a) server-side gate, (b) UDAAP kicked off, (c) current risk model. You are that next PM. All three are currently no. If you commit to Q3 in a steering review without those three green, you own the resulting miss — and the postmortem will cite the doc that told you not to. Also: the server-side migration has been bumped three times since 2024. The pattern is that PM bandwidth always finds something more urgent and the debt rolls. Break the pattern or the expansion does not ship.
+
+CONTEXT YOU NEED
+FlexPay launched 2024-Q2 as Premier-only (US, $100-$10K, flat fee). It hit activation target (11% vs 8% goal) and is functioning as a Premier retention hook per VOC — one customer literally said 'this is why I keep Premier,' which is a positioning argument against Standard expansion even on the upside case. Standard expansion was explored in 2025-Q3 and KILLED for four reasons: 2.4x loss rate on thinner files, +14 FTE servicing with no budget, the client-side mobile eligibility gate blocking any tier change without a forced app update, and UDAAP not started. The eligibility-check tech debt has been bumped since 2024 (PLAN-1247 closed Won't Do, reopened as PLAN-1893 in 2026-04 after Wendell apparently re-committed to Q3 expansion). Separately, the same class of mobile tech debt (UIWebView) became a P0 crash incident in Oct 2025 — the postmortem explicitly says the server-side eligibility migration 'will be next year's incident.' That's this year.
+
+WHAT'S BEEN TRIED
+  • 2024-2025: Server-side eligibility migration filed (PLAN-1247), bumped twice for Standard exploration then fraud work, closed Won't Do in 2025-09. Now reopened as PLAN-1893.
+  • 2025-Q3: Full Standard expansion exploration — killed for loss rate, servicing cost, mobile gate, and UDAAP gaps.
+  • Mobile tech debt parallel: UIWebView in FlexPay caused Oct 2025 P0 crash (MOBILE-3401, hotfixed). Audit found 3 other flows still on UIWebView (MOBILE-3402, open). Same pattern of deferred mobile debt biting in production.
+  • Fraud signup friction (different product) showed the playbook for getting risk to yes: device + behavioral signals after three failed approaches over a year. Standard expansion has no equivalent risk-mitigation work yet — RISK-1102 is still pulling data.
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. PLAN-1893 (server-side migration) is with Priya needing eng capacity. RISK-1102 (delinquency model refresh) is Dana Liu / Sasha Pereira. COMP-2026-44 (UDAAP) is Brett Holloway, not started. MOBILE-3402 (UIWebView audit) is Aiko Tanaka. There is no single DRI for the expansion program itself right now — that gap is your first problem.
+
+OPEN RISKS
+  • Server-side eligibility migration (PLAN-1893): 4 sprints, no eng capacity allocated. Without this, Standard users either need a forced app update (brittle, slow) or you ship a known-broken gate. The current client-side gate already produces the MOBILE-3201 UX bug where ineligible users see the entry point then get a 'not eligible' error — VOC-2025-11-403 is a customer asking why the app lies to them. Expanding tier eligibility while this exists makes the bug worse.
+  • UDAAP review (COMP-2026-44): 6-8 weeks, not kicked off. This is a hard gate, not a workstream you can compress.
+  • Risk modeling (RISK-1102): in progress, Sasha already flagging wide CIs on thin-file 18-24 segment. The 2025 explore showed 2.4x loss rate at parity terms — if the refreshed model confirms, you may need different plan terms (shorter tenors, lower max, higher fee) for Standard, which reopens UDAAP scope.
+  • Servicing capacity: 2025 explore projected +14 FTE. No evidence that's been budgeted. Confirm with Tomás before committing.
+  • Strategic risk: VOC-2026-01-77 shows FlexPay is a Premier differentiator. Diluting to Standard may erode the retention story even if expansion economics work. Get a position from segment marketing before you ship.
+  • Other UIWebView flows (MOBILE-3402) are unremediated landmines parallel to your launch — a crash during a Standard expansion launch window would be catastrophic for trust (see VOC-2025-10-29: customer asked if they need to switch cards after a single crash).
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - prds/2025_fraud_signup_friction.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

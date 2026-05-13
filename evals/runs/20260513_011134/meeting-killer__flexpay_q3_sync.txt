@@ -1,0 +1,105 @@
+======================================================================
+MEETING POSTMORTEM
+======================================================================
+
+VERDICT: Should have been an async pre-read with a 20-minute decision sync — half the meeting was discovering basic facts that belonged in a doc.
+SYNC SCORE: 4/10
+
+----------------------------------------------------------------------
+ACTION GRAPH
+----------------------------------------------------------------------
+1. [Sasha Pereira] Deliver directional thumbs-up/down risk read on 18-24 segment expansion (not full model, v1 with caveats on thin-file confidence intervals)
+   Due: Monday (2026-05-18)
+   Risk if missed: Engineering kickoff window slips; Q3 ship date — already a board commitment — becomes impossible.
+
+2. [Dana Liu] Pull in Carlos from credit risk to support Sasha's directional read; separately loop in fraud strategy for a fraud risk review distinct from UDAAP
+   Due: Monday (2026-05-18) for directional read; fraud loop-in this week
+   Depends on: Deliver directional thumbs-up/down risk read on 18-24 segment expansion
+   Risk if missed: Risk signal blocks eng kickoff; fraud gap discovered late could force rework or block launch.
+
+3. [Aiko Tanaka] Scope the mobile eligibility work — decide between shipping a new app version vs. moving the check server-side, with effort/risk for each
+   Due: Wednesday (2026-05-13)
+   Risk if missed: Client-side eligibility gate makes any expansion impossible to ship; this is the critical path.
+
+4. [Brett Holloway] Kick off UDAAP compliance review for 18-24 segment expansion, running in parallel with eng — not after
+   Due: This week (week of 2026-05-12)
+   Risk if missed: 6-8 week review tacked onto end of eng timeline kills Q3 entirely.
+
+5. [Tomás Reyes] Build servicing call-volume projection and staffing ask for expanded eligibility
+   Due: After Sasha's eligibility numbers land (target end of week of 2026-05-18)
+   Depends on: Deliver directional thumbs-up/down risk read on 18-24 segment expansion
+   Risk if missed: Launch ships into an understaffed servicing org; CSAT and handle-time blow up.
+
+6. [Priya Shankar] Own the cross-functional timeline across Risk, Eng, Mobile, Compliance, Servicing, and Fraud; reconvene team async until Monday then re-sync on Dana's read
+   Due: Ongoing; next sync week of 2026-05-18
+   Risk if missed: Four parallel tracks with no single owner — exactly what Marcus flagged. Slippage goes undetected until Q3 is already lost.
+
+----------------------------------------------------------------------
+ATTENDANCE AUDIT
+----------------------------------------------------------------------
+[KEEP]  Priya Shankar — Drove the agenda, took timeline ownership, and is the connective tissue across tracks.
+[KEEP]  Marcus Webb — Surfaced the timeline-killing client-side eligibility issue and forced the single-owner question. Without him this meeting produces no real outcome.
+[KEEP]  Dana Liu — Owns risk signal that gates eng kickoff; also identified that fraud review was being wrongly bundled into UDAAP.
+[?]     Tomás Reyes — His one contribution (servicing impact) was already in the pre-read per Priya. Could have been handled via comment on the doc; only needed live because no one read the doc.
+[KEEP]  Aiko Tanaka — Dropped the single most consequential fact of the meeting — client-side eligibility gate. Then went silent, which is its own problem.
+[KEEP]  Brett Holloway — UDAAP timeline reframing (parallel, not sequential) materially changes the plan. This needed to be said out loud to Wendell-adjacent stakeholders.
+[?]     Sasha Pereira — Status update on modeling could have been a Slack message. Only real value-add was the thin-file caveat, which belongs in the doc anyway.
+[CUT]   Wendell Ngata — Joined late, ignored the substance, restated the board commitment, and left. A two-line email ('Q3 is non-negotiable, tell me what you need') would have had identical effect and saved everyone the theater.
+
+----------------------------------------------------------------------
+STRUCTURAL OBSERVATIONS
+----------------------------------------------------------------------
+• Pre-read was ignored — Marcus had to ask if anyone read the eligibility doc in the first minute. Either enforce pre-reads or stop writing them.
+• Critical architectural fact (client-side eligibility gate) surfaced 20+ minutes in from Mobile, and was news to the Eng Lead. This is a documentation/architecture-awareness failure, not a meeting problem.
+• No single cross-functional owner existed until Marcus explicitly asked for one. Default org pattern appears to be ‘PM convenes, nobody owns.'
+• Compliance (UDAAP) treated as a tail-end gate rather than a parallel workstream. This pattern will keep killing ship dates until it's institutionalized as parallel by default.
+• Fraud review was nearly swallowed into UDAAP by accident — Dana had to ask. Risk taxonomy needs to be explicit in the project intake template.
+• VP (Wendell) drive-by: joined late, restated a board commitment without engaging with the actual blockers, left. This is a governance anti-pattern — exec commitments are being made without exec absorption of constraints.
+• Two attendees (Aiko, Sasha) made one substantive contribution each and were otherwise silent. Suggests over-invitation; a written status + targeted Q&A would have sufficed.
+• Meeting ended with ‘async until Monday' — which is exactly how it should have started. The first 30 minutes were fact-discovery that belonged in a shared doc.
+
+----------------------------------------------------------------------
+FOLLOWUP DRAFTS
+----------------------------------------------------------------------
+
+To: Sasha Pereira
+Subject: FlexPay 18-24 expansion — directional risk read needed by Monday
+
+Sasha — confirming the ask from today: directional thumbs-up/down on 18-24 segment expansion by Monday 5/18, not the full model. Wide confidence intervals are fine, just call them out explicitly so Marcus can make a kickoff call. Dana is pulling Carlos in on the credit-risk side to unblock you. Please drop the v1 in the FlexPay channel when ready and tag me + Marcus. Thanks. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Dana Liu
+Subject: Two asks: directional read Monday + fraud strategy loop-in
+
+Dana — two things from today. (1) Need a directional risk read by Monday 5/18 to keep Q3 alive; coordinate with Sasha and pull Carlos in as you mentioned. (2) Confirmed with Brett that fraud review is separate from UDAAP — please kick off the fraud strategy loop-in this week and send me a one-pager on scope/timeline so I can fold it into the master plan. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Aiko Tanaka
+Subject: Mobile eligibility scoping — need decision doc by Wednesday
+
+Aiko — the client-side eligibility gate is now the critical path. By EOD Wednesday 5/13, please send a short scoping doc comparing (a) new app version vs (b) server-side migration: effort estimate, risk, rollout implications, and your recommendation. Loop Marcus in directly. Also — if there are other ‘it's been like that since 2024' surprises lurking in the FlexPay mobile stack, I'd rather hear them now than in the next sync. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Brett Holloway
+Subject: UDAAP kickoff this week — running parallel to eng
+
+Brett — per your point today, we're treating the 6-8 week UDAAP review as parallel to eng, not sequential. Please formally kick off the review this week and send me the intake confirmation + expected milestones so I can map them onto the master timeline. Flag any dependencies on Sasha's segment data early. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Tomás Reyes
+Subject: Servicing volume projection — queued behind Sasha's numbers
+
+Tomás — once Sasha's eligibility numbers land (targeting week of 5/18), please turn around a call-volume projection and staffing ask within a week. If there's a credible upper-bound estimate you can sketch sooner using current FlexPay attach rates, that would help compliance and eng plan. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+
+To: Marcus Webb
+Subject: Timeline ownership + open question on Q3 viability
+
+Marcus — I'm owning the cross-functional timeline as you asked. Two things: (1) I'll publish a single tracker by EOD tomorrow with the four parallel tracks (Risk, Mobile, UDAAP, Servicing) and named owners. (2) Wendell's ‘find a way' on Q3 is not an answer. Once Aiko's mobile scoping lands Wednesday and Sasha's read lands Monday, let's co-author a one-pager to Wendell with the honest Q3-vs-Q4 tradeoff. I'd rather escalate early than miss quietly. — Priya
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 

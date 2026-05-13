@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -32,6 +33,30 @@ JUDGE_MODEL = "claude-opus-4-7"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = REPO_ROOT / "evals" / "golden"
 RUNS_DIR = REPO_ROOT / "evals" / "runs"
+
+# Pricing (USD per 1M tokens) — Claude Opus 4.7.
+COST_PER_M_INPUT = 5.00
+COST_PER_M_OUTPUT = 25.00
+COST_PER_M_CACHE_READ = 0.50
+
+
+@dataclass
+class TokenAccount:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+
+    def add(self, usage: anthropic.types.Usage) -> None:
+        self.input_tokens += usage.input_tokens or 0
+        self.output_tokens += usage.output_tokens or 0
+        self.cache_read_input_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
+
+    def cost_usd(self) -> float:
+        return (
+            self.input_tokens * COST_PER_M_INPUT / 1_000_000
+            + self.output_tokens * COST_PER_M_OUTPUT / 1_000_000
+            + self.cache_read_input_tokens * COST_PER_M_CACHE_READ / 1_000_000
+        )
 
 
 # ---- Schemas -----------------------------------------------------------------
@@ -95,10 +120,38 @@ def run_cross_team(case: dict[str, Any]) -> str:
     return out.stdout
 
 
+def run_oncall_companion(case: dict[str, Any]) -> str:
+    """Set up memory per `_setup` directives, then pipe the page to the agent on stdin."""
+    setup = case.get("_setup", {})
+    memory_root = REPO_ROOT / "04_oncall_companion" / ".memory"
+    if setup.get("reset_memory"):
+        if memory_root.exists():
+            shutil.rmtree(memory_root)
+        memory_root.mkdir(parents=True, exist_ok=True)
+    seed_files: dict[str, str] = setup.get("seed_files", {})
+    for path, content in seed_files.items():
+        target = memory_root / path.lstrip("/")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content)
+
+    out = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "04_oncall_companion" / "agent.py")],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        input=case["page"],
+        timeout=300,
+    )
+    if out.returncode != 0:
+        raise RuntimeError(f"oncall-companion agent failed:\nSTDOUT:\n{out.stdout}\nSTDERR:\n{out.stderr}")
+    return str(out.stdout)
+
+
 RUNNERS = {
     "meeting-killer": run_meeting_killer,
     "pm-memory": run_pm_memory,
     "cross-team": run_cross_team,
+    "oncall-companion": run_oncall_companion,
 }
 
 
@@ -122,7 +175,7 @@ Be strict. If the criterion says "names a specific person," generic phrases like
 Your audience is an engineer who will use these grades to decide whether to ship a prompt or system change. Reliability matters more than charity."""
 
 
-def judge_case(client: anthropic.Anthropic, case: dict[str, Any], agent_output: str) -> CaseVerdict:
+def judge_case(client: anthropic.Anthropic, case: dict[str, Any], agent_output: str, account: TokenAccount) -> CaseVerdict:
     must_have = case.get("must_have", [])
     must_not_have = case.get("must_not_have", [])
     response = client.messages.parse(
@@ -151,7 +204,11 @@ Grade the output. For each criterion, decide passed=true/false with specific evi
         ],
         output_format=CaseVerdict,
     )
-    return response.parsed_output
+    account.add(response.usage)
+    parsed = response.parsed_output
+    if parsed is None:
+        raise RuntimeError(f"judge model returned no parsed output for case {case['id']}")
+    return parsed
 
 
 # ---- Reporting ---------------------------------------------------------------
@@ -172,7 +229,7 @@ class SkillResult:
         return len(self.verdicts) + len(self.errors)
 
 
-def render_report(results: list[SkillResult], run_dir: Path) -> str:
+def render_report(results: list[SkillResult], run_dir: Path, account: TokenAccount) -> str:
     total_pass = sum(r.pass_count for r in results)
     total_cases = sum(r.total for r in results)
 
@@ -189,6 +246,17 @@ def render_report(results: list[SkillResult], run_dir: Path) -> str:
     lines.append("|---|---|---|")
     for r in results:
         lines.append(f"| `{r.skill}` | {r.pass_count} | {r.total} |")
+    lines.append("")
+    lines.append(f"## Judge token cost")
+    lines.append("")
+    lines.append(f"| Field | Value |")
+    lines.append(f"|---|---|")
+    lines.append(f"| Input tokens | {account.input_tokens:,} |")
+    lines.append(f"| Output tokens | {account.output_tokens:,} |")
+    lines.append(f"| Cache-read input tokens | {account.cache_read_input_tokens:,} |")
+    lines.append(f"| Estimated cost (judge only) | ${account.cost_usd():.4f} |")
+    lines.append("")
+    lines.append("_Judge cost only. Agent costs are tracked separately by the agent's own logger output._")
     lines.append("")
 
     for r in results:
@@ -231,7 +299,11 @@ def load_cases(skill: str) -> list[dict[str, Any]]:
     path = GOLDEN_DIR / f"{skill}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"no golden file: {path}")
-    return yaml.safe_load(path.read_text())["cases"]
+    data = yaml.safe_load(path.read_text())
+    cases = data["cases"]
+    if not isinstance(cases, list):
+        raise ValueError(f"{path}: 'cases' must be a list")
+    return list(cases)
 
 
 def main() -> int:
@@ -250,6 +322,7 @@ def main() -> int:
     run_dir = RUNS_DIR / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)
 
+    account = TokenAccount()
     results: list[SkillResult] = []
     for skill in skills:
         print(f"\n=== {skill} ===", file=sys.stderr)
@@ -267,20 +340,23 @@ def main() -> int:
                 result.errors.append(err)
                 continue
             print(f"  {cid}: judging...", file=sys.stderr)
-            verdict = judge_case(client, case, agent_output)
+            verdict = judge_case(client, case, agent_output, account)
             result.verdicts.append(verdict)
             marker = "PASS" if verdict.overall_pass else "FAIL"
             print(f"  {cid}: {marker}", file=sys.stderr)
         results.append(result)
 
-    report = render_report(results, run_dir)
+    report = render_report(results, run_dir, account)
     (run_dir / "report.md").write_text(report)
     (REPO_ROOT / "evals" / "report.md").write_text(report)
     print(f"\nreport written to {run_dir / 'report.md'}", file=sys.stderr)
 
     total_pass = sum(r.pass_count for r in results)
     total_cases = sum(r.total for r in results)
-    print(f"summary: {total_pass}/{total_cases} passed", file=sys.stderr)
+    print(
+        f"summary: {total_pass}/{total_cases} passed | judge cost ${account.cost_usd():.4f}",
+        file=sys.stderr,
+    )
     return 0 if total_pass == total_cases else 1
 
 

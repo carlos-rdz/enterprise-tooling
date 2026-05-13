@@ -1,12 +1,15 @@
 # enterprise-coordination
 
 ![ci](https://github.com/carlos-rdz/enterprise-tooling/actions/workflows/ci.yml/badge.svg)
+![evals](https://github.com/carlos-rdz/enterprise-tooling/actions/workflows/evals.yml/badge.svg)
 
 A Claude Code plugin that explores what AI tooling for engineering teams looks like when you stop building coding assistants and start building for the *upstream* dysfunctions — too many meetings, product teams without product memory, cross-team silos that turn every initiative into a re-negotiation, and on-call rotations where pattern recognition across prior incidents lives in nobody's head.
 
 Four workflows, each implemented **twice**: once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), and once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage.
 
 **Start here:** [`architecture.md`](architecture.md) — the tool-surface map and composition diagram.
+
+**Prod-grade:** structured logging (pino + stdlib `logging`), retry-with-backoff on upstream APIs, LRU caches on read endpoints, `McpError` types, `health_check` tools, strict mypy + 33 pytest + 33 vitest tests, LLM-judge eval harness gated in CI. Three operational modes per integration: synthetic / dry-run / live.
 
 ---
 
@@ -54,7 +57,18 @@ Four workflows, each implemented **twice**: once as a Claude Code plugin (skill 
 │   ├── agent.py
 │   └── incidents/              # synthetic page snapshots
 │
-└── .github/workflows/ci.yml    # typecheck + MCP smoke + hook tests + Python compile + YAML validate
+├── tests/                      # Vitest (MCP servers + shared modules) + pytest (Python agents)
+│   ├── mcp-servers.test.ts
+│   └── python/test_*.py
+│
+├── scripts/typecheck-agents.sh # per-agent mypy strict (handles the "four files named agent.py" case)
+├── mypy.ini                    # strict mode config for _shared + evals
+├── vitest.config.ts            # TS test config + coverage
+├── pytest.ini                  # pytest config
+│
+└── .github/workflows/
+    ├── ci.yml                  # typecheck + tests + MCP smoke + hook tests
+    └── evals.yml               # nightly LLM-judge eval-gate, fails on regression
 ```
 
 ## The four workflows
@@ -128,11 +142,27 @@ Behavioral eval harness with LLM judge:
 ```bash
 python evals/run.py                 # all skills
 python evals/run.py meeting-killer  # one skill
+python evals/run.py oncall-companion
 ```
 
-Cases are defined in `evals/golden/<skill>.yaml` as `must_have` / `must_not_have` criteria. A judge model (Claude Opus 4.7) grades each agent output against the rubric and writes a markdown report to `evals/report.md`. Designed to be eval-gated CI for future prompt or model changes.
+Cases live in `evals/golden/<skill>.yaml` as `must_have` / `must_not_have` criteria. A judge model (Claude Opus 4.7) grades each agent output against the rubric and writes a markdown report to `evals/report.md`. Each case captures the agent's full output to `evals/runs/<ts>/` and tracks judge token cost so cost-per-eval doesn't surprise anyone.
 
-Current baseline: **6/6 cases pass**. See `evals/report.md`.
+The `.github/workflows/evals.yml` workflow runs the suite nightly (and on manual dispatch) against the committed baseline pass count — if a change drops the pass rate below baseline, CI fails. This is the **eval-gate**.
+
+Current baseline: **8/8 cases pass**. See `evals/report.md`. Judge cost per full run: ~$0.25 (Opus 4.7 input + output + cache-read tokens).
+
+## Tests
+
+```bash
+npm test                # Vitest — 33 tests covering shared modules + all 4 MCP servers
+pytest tests/python -q  # pytest — 33 tests covering all 4 Python agents + _shared
+
+npm run typecheck       # tsc --noEmit
+mypy                    # _shared + evals strict
+bash scripts/typecheck-agents.sh  # per-agent strict
+```
+
+All check on every push and PR via `.github/workflows/ci.yml`.
 
 ## Why this exists
 

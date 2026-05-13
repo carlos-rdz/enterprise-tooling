@@ -1,0 +1,33 @@
+======================================================================
+Q: Why was FlexPay Standard expansion killed last year?
+======================================================================
+
+FlexPay Standard expansion was killed in Q3 2025 for four reasons: (1) risk modeling showed loss rates ~2.4x Premier for the Standard segment, (2) servicing projections required 14 unfunded FTE, (3) the mobile eligibility check is still client-side, so any tier expansion requires a forced app update or a 4-sprint server-side migration that kept getting bumped, and (4) UDAAP review for the new segment (6-8 weeks) was never started. The kill doc explicitly says: do not have the expansion conversation again unless server-side gate, UDAAP, and current risk modeling are all in motion.
+
+⚠ WARNING
+If you're asking because expansion is back on the table for Q3: you are about to repeat the exact mistake the 2025 kill doc was written to prevent. The kill doc lists three preconditions (server-side gate done, UDAAP kicked off, risk modeling current). As of May 2026: server-side gate is not started (PLAN-1893 has no eng capacity), UDAAP is 'Not Started' (COMP-2026-44) and needs 6-8 weeks, and risk modeling is mid-flight with wide CIs expected. A Q3 ship is not real. Push back on Wendell's commitment now, in writing, before the team burns a quarter pretending.
+
+CONTEXT YOU NEED
+This is highly relevant right now because someone (Wendell) has apparently re-committed to a Q3 expansion — Aiko refiled PLAN-1893 in April 2026 to reopen the server-side migration on that basis, and Dana/Sasha are refreshing the 18-24 delinquency model under RISK-1102. But UDAAP (COMP-2026-44) is still 'Not Started' as of May 2026, and the eng capacity for the 4-sprint server-side migration has not been found. So the team is currently walking into the exact trap the 2025 kill doc warned about. Separately, the original PM (S. Kowalski) who filed the kill doc has departed, so the institutional memory of *why* this was killed is thin on the current team.
+
+WHAT'S BEEN TRIED
+  • 2025-Q3 exploration to expand FlexPay to Standard — killed for risk, servicing, mobile, and compliance reasons (2025_plan_it_gold_explore.md).
+  • PLAN-1247 (server-side eligibility migration) — filed 2024-09, bumped twice through 2025 for competing priorities, closed Won't Do in 2025-09. Refiled as PLAN-1893 in 2026-04, still needs eng capacity.
+  • Workaround tried at launch: client-side eligibility check (ADR-0042) — created the very debt now blocking expansion, and is also producing the 'why does the app show me a FlexPay button then reject me' UX bug (MOBILE-3201, VOC-2025-11-403).
+
+OWNER TODAY: Priya Shankar owns FlexPay overall. The expansion workstream's blockers are split: Priya (server-side migration / PLAN-1893), Brett Holloway (UDAAP / COMP-2026-44, not started), Sasha Pereira under Dana Liu (risk model refresh / RISK-1102, in progress). No single accountable owner for the expansion program itself is named in the corpus.
+
+OPEN RISKS
+  • The 2024 'we'll fix it in Q1 2025' promise on UIWebView became a P0 incident in Q4 2025 (mobile crash postmortem). The server-side eligibility check is the same shape of debt and the postmortem explicitly calls it out as 'next year's incident.'
+  • UDAAP review for Standard expansion is not started and takes 6-8 weeks. If Q3 ship is the target, this is already past the point where it's safely sequenceable.
+  • Risk model refresh (RISK-1102) is just starting; Sasha already flagged thin-file CIs will be wide. The 2.4x loss-rate finding from 2025 may or may not hold, but a wide CI means risk is unlikely to greenlight aggressive terms.
+  • Servicing FTE budget (14 heads in 2025 projection) has not been re-secured in any doc in the corpus.
+  • FlexPay is functioning as a *Premier retention* signal (VOC-2026-01-77). Expanding to Standard may dilute that positioning — a strategic question nobody in the corpus has re-asked.
+  • MOBILE-3201 (client-side eligibility leaking entry points to ineligible tiers) is unfixed and will get worse, not better, with tier expansion.
+
+CITATIONS
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2024_plan_it_launch.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

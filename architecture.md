@@ -30,11 +30,17 @@ Both call `claude-opus-4-7` with adaptive thinking. The productized form isn't s
 | **Adaptive thinking** | ✓ | ✓ | ✓ | ✓ | model param |
 | **Structured outputs (Pydantic)** | ✓ (raw form) | ✓ (raw form) | — | — | `*/agent.py` |
 | **Manual tool-use loop** | — | via subagent | ✓ (raw form) | — | `03_cross_team/agent.py` |
-| **SDK tool runner (`run_tools().until_done()`)** | — | — | — | ✓ (raw form) | `04_oncall_companion/agent.py` |
+| **SDK tool runner (`tool_runner().until_done()`)** | — | — | — | ✓ (raw form) | `04_oncall_companion/agent.py` |
 | **Memory tool (`BetaAbstractMemoryTool`)** | — | — | — | ✓ (raw form, filesystem-backed) | `04_oncall_companion/agent.py` |
 | **Prompt caching** | — | ✓ (raw form, on corpus) | — | — | `02_pm_memory/agent.py` |
 | **Real API integration** | Slack + Jira writes | Slack + Jira reads | Slack + Jira reads | Slack + Jira reads | env-gated, synthetic fallback |
-| **Eval coverage** | 1 case | 3 cases | 2 cases | — (next pass) | `evals/golden/*.yaml` |
+| **Eval coverage** | 1 case | 3 cases | 2 cases | 2 cases | `evals/golden/*.yaml` |
+| **Structured logging** | ✓ stdlib logging (JSON to stderr) | ✓ | ✓ | ✓ | `_shared/logging_setup.py` |
+| **Retry / backoff / rate-limit** | — | — | — | — | `mcp_servers/_shared/retry.ts` (live MCP servers only) |
+| **LRU cache (TTL'd)** | — | search results | search results | — | `mcp_servers/_shared/cache.ts` |
+| **`health_check` MCP tool** | — | ✓ | ✓ | ✓ | every MCP server |
+| **Tests (vitest + pytest)** | ✓ | ✓ | ✓ | ✓ | `tests/` |
+| **mypy strict** | ✓ | ✓ | ✓ | ✓ | `mypy.ini` + `scripts/typecheck-agents.sh` |
 
 Combined, these workflows exercise substantially the full public Claude Code + Claude API surface: skills, slash commands, subagents, MCP servers (TS SDK with both local-data and live-API patterns), PostToolUse + PreToolUse hooks, plugin bundling, adaptive thinking, structured outputs, manual tool-use loops, the SDK tool runner, the memory tool, prompt caching, settings.json + .mcp.json configuration, live integration with external SaaS APIs, and an LLM-judge eval harness gating the whole thing.
 

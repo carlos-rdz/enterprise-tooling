@@ -1,0 +1,24 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+Affected: FlexPay plan creation. Started 03:32 ET tonight.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  **2nd occurrence of a known pattern.** Prior: `/memories/incidents/2026-04-29__auth-service__biometric-latency.md` — same endpoint `/v1/biometric/validate`, p99 1.4s for 8 min, auto-recovered, AUTH-590 filed but root cause unconfirmed. Pattern file `/memories/patterns/biometric-latency.md` hypothesizes the legacy biometric shared library is capacity-constrained against mobile-platform + FlexPay ramp. Tonight's signal (1.2s/5min, FlexPay impact) fits that hypothesis cleanly.
+
+SERVICE / IMPACT: auth-service biometric validation endpoint is slow enough that FlexPay's plan-creation flow — which blocks on biometric step-up — is degrading for users mid-checkout. Likely user-visible as plan creation hangs or times out.
+
+LIKELY CAUSE: Saturation of the legacy biometric shared library pool, same as 2026-04-29. Probably correlated with overnight batch / mobile traffic shape hitting an under-provisioned pool. Same class of event AUTH-590 was filed against and never structurally fixed.
+
+NEXT STEP: Pull auth-service dashboard for biometric lib pool utilization (CPU, thread saturation, queue depth) for the 03:30 ET window. If saturated, scale the pool now (or apply rate-limit on `/v1/biometric/validate` non-FlexPay callers) to shed load and unblock FlexPay. Do not wait for auto-recovery — we already know it recovers and recurs.
+
+ESCALATION: **2nd occurrence of the `biometric-latency` pattern.** Open a thread with the auth-service owner (assignee on AUTH-590) first thing in the morning: AUTH-590 needs to move from "filed" to a real structural fix — pool scale-up, dedicated FlexPay path, or retiring the legacy shared lib. CC FlexPay on-call since their SLO is the one being burned. Owner currently TBD in `/memories/owners.md` — capture from AUTH-590 ticket.
+
+NOTES WRITTEN:
+- `/memories/incidents/2026-05-XX__auth-service__biometric-latency.md` (new — tonight's page, flagged as 2nd occurrence)
+- `/memories/patterns/biometric-latency.md` (appended 2nd-occurrence line, pattern confirmed)
+- `/memories/owners.md` (created stub — auth-service biometric + FlexPay owners marked TBD for fill-in)
+

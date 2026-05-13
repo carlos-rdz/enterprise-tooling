@@ -1,0 +1,34 @@
+======================================================================
+Q: What's the deal with the mobile eligibility check?
+======================================================================
+
+The FlexPay eligibility check is implemented client-side in the mobile app — a known piece of tech debt from the 2024 launch that was supposed to ship server-side in Q1 2025 and never did. It causes a user-visible UX bug (Standard users see the FlexPay entry point, tap it, and get a 'not eligible' error), and it is the single biggest blocker to any tier expansion because expansion requires either forcing an app update or migrating the check server-side. The migration is sized at 4 sprints, has been bumped at least twice, and is now reopened as PLAN-1893 but unstaffed.
+
+⚠ WARNING
+If you're asking because someone is scoping a Q3 Standard expansion: do not commit to a date. The kill doc from 2025 spelled out the three preconditions (server-side gate, UDAAP kicked off, risk model refreshed). As of the latest tickets, the gate migration is unstaffed, UDAAP hasn't started, and the risk refresh is mid-flight with wide CIs. You are about to repeat exactly the mistake S. Kowalski documented on the way out the door.
+
+CONTEXT YOU NEED
+This was a launch-time corner-cut documented in ADR-0042 and the 2024 launch PRD's known issues. The original PM (S. Kowalski) committed to fixing it in Q1 2025; that slot got eaten by the Standard expansion exploration, then by the fraud signup friction work, and Marcus Webb's ticket (PLAN-1247) was closed Won't Do in Sept 2025 by Priya. The Standard expansion exploration was killed in Q3 2025 partly because of this exact gate — the kill doc explicitly says any future expansion conversation must START with 'is the mobile gate server-side yet.' It's now reopened (PLAN-1893) because Wendell committed to a Q3 expansion read. Separately, this same 'we'll ship it native/server later' pattern already produced one P0 incident — the UIWebView crash in Oct 2025 — and the postmortem explicitly warns that the eligibility check is 'next year's incident.'
+
+WHAT'S BEEN TRIED
+  • 2024 launch: client-side check shipped as sprint-constraint compromise (ADR-0042).
+  • Q1 2025: server-side migration planned, bumped for Standard expansion exploration (PLAN-1247).
+  • Q2 2025: bumped again for fraud signup friction work (PLAN-1247).
+  • Sept 2025: PLAN-1247 closed Won't Do by Priya, with note to refile if expansion greenlit.
+  • April 2026: refiled as PLAN-1893 by Aiko per Wendell's Q3 expansion commitment — confirmed required, sized 4 sprints, still needs eng capacity.
+
+OWNER TODAY: Priya Shankar owns FlexPay product. Aiko Tanaka filed the reopened ticket (PLAN-1893). No eng team has capacity assigned yet. MOBILE-3201 (the related UX bug where ineligible users still see the entry point) was filed and never fixed — no owner.
+
+OPEN RISKS
+  • PLAN-1893 is unstaffed. Any Q3 expansion date that assumes this is done is fiction until eng capacity is locked.
+  • MOBILE-3201 (UX bug: Standard users see FlexPay button, get post-tap 'not eligible' error) is unfixed and actively generating negative VOC (see VOC-2025-11-403). Customers are comparing us unfavorably to Affirm on the same merchant.
+  • Postmortem on the UIWebView crash explicitly predicts the eligibility check is the next P0 — same pattern: deferred 2024 tech debt, mobile flow, financial surface area. Crashes on FlexPay create disproportionate trust damage (VOC-2025-10-29: 'do I need to switch cards if your app can't be trusted').
+  • Even if the migration ships, expansion still requires UDAAP review (COMP-2026-44, not started, 6-8 weeks) and the refreshed risk model (RISK-1102, in progress with wide CIs expected). All three must be live for Q3 to be real.
+  • Forced app-update path is the only alternative to server-side migration, and that has its own adoption-tail problem on a financial flow.
+
+CITATIONS
+  - prds/2024_plan_it_launch.md
+  - prds/2025_plan_it_gold_explore.md
+  - prds/2025_mobile_crash_postmortem.md
+  - tickets/tickets.md
+  - convos/customer_calls.md

@@ -1,0 +1,24 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service p99 latency 1.2s (baseline 180ms) on /v1/biometric/validate
+for 5 min. Affected flow: FlexPay plan creation. Started ~03:32 ET.
+
+======================================================================
+TRIAGE
+======================================================================
+PATTERN MATCH:  First occurrence — memory empty for this signal. No prior `/memories/incidents/` or `/memories/patterns/` entries exist for auth-service or biometric latency.
+
+SERVICE / IMPACT: auth-service biometric validation endpoint is ~7x slower than baseline. FlexPay can't complete plan creation because that flow waits synchronously on `/v1/biometric/validate` — so new FlexPay signups are stalling or timing out in production right now.
+
+LIKELY CAUSE:   Downstream biometric vendor degradation is the highest-prior guess — auth-service is almost certainly the proxy in this call, and a 180ms→1.2s jump with no error-rate signal is the classic shape of upstream tail latency, not a code path change. Secondary: connection pool saturation to that vendor as a consequence. Tertiary: a deploy in the last hour that removed a cache or made a previously-async call sync.
+
+NEXT STEP:      Open the auth-service dashboard and split the request time into "outbound vendor call" vs "internal handler". If vendor call is >900ms, page the biometric-vendor owner and check the vendor status page; in parallel ask FlexPay on-call whether they have a feature flag to allow plan creation with deferred/async biometric verification for low-risk plans, and flip it if yes. If internal handler is the slow part, check the deploy log for auth-service in the last 2 hours and prepare to roll back.
+
+ESCALATION:     — first occurrence, no escalation yet. If this recurs, the structural conversation is: (1) circuit breaker on the biometric vendor call so auth-service fails fast instead of queueing, (2) a degraded-mode path in FlexPay plan creation. Owners TBD — fill in `/memories/owners.md` once known.
+
+NOTES WRITTEN:  
+- /memories/incidents/2024_03_32ET__auth-service__biometric_validate_p99_latency.md
+- /memories/patterns/auth-service_biometric_latency.md
+- /memories/owners.md
+

@@ -32,30 +32,45 @@ from typing import Any
 import anthropic
 from anthropic.lib.tools import BetaAbstractMemoryTool
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _shared.logging_setup import get_logger  # noqa: E402
+
+log = get_logger("oncall-companion")
+
 MODEL = "claude-opus-4-7"
 MEMORY_ROOT = Path(__file__).parent / ".memory"
 
-SYSTEM = """You are an on-call companion for an enterprise engineering team.
+SYSTEM = """You are an on-call companion for an enterprise engineering team. The user has been paged. You make them look like a senior on-call engineer regardless of the actual hour.
 
-Every time the user pages you (drops an incident description, an alert, or a
-question), you do three things:
+EVERY page gets three actions, in this order:
 
-1. **Recall** — call the memory tool to read prior incident notes. Always do
-   this BEFORE responding, even if the page looks routine. Pattern recognition
-   is the whole point of this role.
+================ STEP 1 — RECALL (REQUIRED) =================
+Use the memory tool to read prior incident notes BEFORE producing the triage.
+ALWAYS perform at least these reads:
+  - view /memories/incidents/   (list prior pages)
+  - view /memories/patterns/    (list ongoing trend files)
+If those return "no entry" or list new directories, that confirms first-occurrence — say so explicitly.
+If matches exist, read the specific files that look related and quote them in PATTERN MATCH.
+Pattern recognition across pages is the entire value of this role. Skipping the recall step is a failure.
 
-2. **Triage** — give a structured response:
-   - Pattern match: have we seen this before? Cite specific prior pages.
-   - Likely cause: based on prior incidents + this signal.
-   - Suggested next step: what to do RIGHT NOW (mitigate, escalate, or just record).
-   - Escalation: if this is the Nth occurrence of a pattern, name it and recommend a structural fix conversation with the relevant owner.
+================ STEP 2 — TRIAGE (REQUIRED STRUCTURE) =================
+Output the following structure verbatim. Do not omit any field. Do not shorten to one line.
 
-3. **Remember** — call the memory tool to write a note about this page (date,
-   service, symptom, what was tried, status). Use a stable path scheme so
-   future pages can find related history.
+PATTERN MATCH:  <Either "first occurrence — memory empty for this signal" OR cite the specific prior memory path(s) and dates. Be explicit.>
+SERVICE / IMPACT: <Restate the affected service and downstream user impact in YOUR words — not a copy of the page>
+LIKELY CAUSE:   <Best hypothesis based on the recall + page signal>
+NEXT STEP:      <Concrete action RIGHT NOW — mitigate / escalate / record. Not "investigate further".>
+ESCALATION:     <If this is the Nth occurrence of a known pattern (N ≥ 2), name the pattern and the structural fix conversation to start, with the owner. Else "— first occurrence, no escalation yet".>
+NOTES WRITTEN:  <The memory paths you wrote to in step 3>
 
-Tone: senior on-call engineer at 3am. Calm, specific, no fluff. Your audience
-just got paged and wants signal, not narrative."""
+================ STEP 3 — REMEMBER (REQUIRED) =================
+Use the memory tool to write a note for this page. Use these paths:
+  - /memories/incidents/<date>__<service>__<symptom>.md   (one per page)
+  - /memories/patterns/<pattern_name>.md                  (running file when you detect/update a pattern; for the 2nd+ occurrence, append a dated line)
+  - /memories/owners.md                                   (build up over time — who to escalate to for what)
+The NOTES WRITTEN field in step 2 must list the exact paths you wrote. If you didn't write anything, that field reads "(none — skipped persistence)" and that counts as a failure of this role.
+
+TONE: senior on-call engineer at 3am. Specific. No filler. But the structure above is NOT filler — it is the contract. Every field every time."""
 
 
 class FilesystemMemoryTool(BetaAbstractMemoryTool):
@@ -148,7 +163,7 @@ def read_page() -> str:
 
 def main() -> int:
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("set ANTHROPIC_API_KEY", file=sys.stderr)
+        log.error("ANTHROPIC_API_KEY not set")
         return 1
 
     MEMORY_ROOT.mkdir(parents=True, exist_ok=True)
@@ -157,7 +172,7 @@ def main() -> int:
     client = anthropic.Anthropic()
     memory = FilesystemMemoryTool()
 
-    print(f"oncall companion engaged. memory: {MEMORY_ROOT.relative_to(Path.cwd()) if MEMORY_ROOT.is_relative_to(Path.cwd()) else MEMORY_ROOT}\n", file=sys.stderr)
+    log.info("oncall companion engaged", extra={"memory_root": str(MEMORY_ROOT), "page_chars": len(page)})
     print("=" * 70)
     print("PAGE")
     print("=" * 70)
@@ -167,8 +182,10 @@ def main() -> int:
     print("TRIAGE")
     print("=" * 70)
 
-    # run_tools runs the agentic loop with the memory tool until end_turn.
-    final = client.beta.messages.run_tools(
+    # tool_runner returns a BetaToolRunner that drives the agentic loop with
+    # the memory tool until end_turn. Beta API surface; types via Any.
+    beta_messages: Any = client.beta.messages
+    final = beta_messages.tool_runner(
         model=MODEL,
         max_tokens=8000,
         system=SYSTEM,
@@ -181,7 +198,7 @@ def main() -> int:
             print(block.text)
 
     print()
-    print(f"[memory persisted to {MEMORY_ROOT}]", file=sys.stderr)
+    log.info("memory persisted", extra={"memory_root": str(MEMORY_ROOT)})
     return 0
 
 

@@ -1,0 +1,11 @@
+======================================================================
+PAGE
+======================================================================
+PD alert: auth-service /v1/biometric/validate p99 latency 1.2s for 5 min.
+Affected: FlexPay plan creation. Started 03:32 ET tonight.
+
+======================================================================
+TRIAGE
+======================================================================
+Note: I didn't have tonight's exact date in the page — update the incident filename when you confirm. Ping me with the saturation/co-tenant findings and I'll log them against this incident.
+

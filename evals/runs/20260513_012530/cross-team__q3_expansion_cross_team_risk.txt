@@ -1,0 +1,50 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+# FlexPay Q3 Standard Expansion — Cross-Team Risk Report
+
+I pulled team-registry, Jira, and Slack. The picture is worse than your sprint board suggests. Three live collisions, one of them silently lethal to your Q3 date.
+
+## The 3 critical hidden dependencies/overlaps
+
+### 1. 🔴 UDAAP review has not been kicked off — this alone kills Q3
+- **COMP-2026-44** ("UDAAP review — FlexPay Standard expansion to 18-24 segment") status: **Not Started**.
+- Brett Holloway posted in `#flexpay-xfn`: *"Reminder UDAAP review for Standard expansion has NOT been kicked off. 6-8 wks lead time."*
+- Downstream: **SVC-3411** (servicing scripts) is already **Blocked** on it. Servicing cannot train reps without it.
+- Nobody on your sprint board appears to own pushing this. Priya's recent decisions don't mention it.
+
+### 2. 🔴 Biometric stack is a three-way collision with no alignment
+Four tickets, three teams, in flight simultaneously, all in Q3:
+| Ticket | Team | What it does |
+|---|---|---|
+| PLAN-1925 | plan-it (yours) | Biometric step-up on plan creation >$1000 |
+| MOBILE-3501 | mobile-platform | FaceID into FlexPay flow, **inline, using legacy shared lib** |
+| AUTH-455 | auth-platform | **Re-architecting biometric to centralized service, deprecates the legacy shared lib, ETA Q3** |
+| FRAUD-1120 | fraud-risk | Needs biometric signal from auth for step-up v2 |
+
+- Aiko's team explicitly decided (2026-04) to embed biometric calls inline **"without consulting auth-platform"** — and Hiroshi is deprecating the exact library they're building on, in the same quarter.
+- Your own decision log says *"coordinate with mobile-platform on biometric. Owner: Priya"* — that coordination clearly hasn't reached auth-platform or fraud-risk.
+- Fraud-risk also flagged in their decision log: *"No formal alignment yet"* with auth on biometric signal.
+- Result: PLAN-1925 inherits whichever path mobile picked, which is the path auth is about to break.
+
+### 3. 🟠 Server-side eligibility migration (PLAN-1893) is unstaffed and is 4 sprints
+- Marcus in `#flexpay-eng`: *"PLAN-1893 reopened — server-side eligibility migration, 4 sprints. Need to find capacity."*
+- Reporter on the ticket is **Aiko Tanaka (mobile)** — mobile is treating this as a dependency on you, but it has no assignee.
+- This is a Standard prerequisite (client-side eligibility won't survive 18-24 underwriting rules).
+
+### Honorable mentions
+- **RISK-1102** (18-24 delinquency model) needs **COMP-2026-58** (SR 11-7 model risk doc). Two separate teams, no joint plan visible.
+- **Servicing** AHT is 8.2 min vs. 4.1 target *today*. Tomás projects **+14 FTE** for Standard and **finance has not approved**. Even if you ship on time, the call center can't catch it.
+
+## People to talk to TODAY (in this order)
+
+1. **Brett Holloway** (compliance-engineering) — get COMP-2026-44 kicked off this week. Non-negotiable.
+2. **Hiroshi Sato** (auth-platform) — lock the AUTH-455 timeline and decide: does FlexPay (PLAN-1925 + MOBILE-3501) cut over to the new service, or does Hiroshi keep the legacy lib alive through Q3? Pick one.
+3. **Aiko Tanaka** (mobile-platform) — align MOBILE-3501 to whatever you decide with Hiroshi, and get her to staff or hand back PLAN-1893.
+4. **Dana Liu** (fraud-risk) — FRAUD-1120 signal contract with auth, and confirm RISK-1102 + COMP-2026-58 are tracked as one workstream.
+5. **Tomás Reyes** (servicing) — escalate the 14-FTE finance approval; it's a launch-readiness gate, not a post-launch problem.
+
+## ⚠️ The one thing that slips you to Q4
+
+**Start the UDAAP review this week.** 6-8 week lead time, not started, hard regulatory gate, and servicing scripts are already blocked behind it. Every other risk on this page has a workaround. This one does not — if Brett doesn't have a draft package in his hands by end of week, your Q3 ship is already a Q4 ship and nobody has told Wendell yet.

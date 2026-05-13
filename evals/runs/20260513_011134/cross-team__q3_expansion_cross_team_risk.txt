@@ -1,0 +1,39 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+Here's the picture. There are four cross-team collisions sitting under Q3 Standard, and at least two of them are project-killers.
+
+## 🔴 Critical hidden dependencies
+
+**1. Biometric shared library is being deprecated mid-build.**
+- You (PLAN-1925) and mobile (MOBILE-3501) are both building biometric step-up on the *legacy shared library*.
+- Auth-platform (AUTH-455, Hiroshi Sato) is **re-architecting biometric into a centralized service in Q3 — the same quarter you ship — and deprecating the legacy lib**. Hiroshi has flagged this in #auth-platform; nobody on your side has responded.
+- Worse: mobile-platform's 2026-04 decision log says they chose to embed biometric calls inline in the FlexPay flow "without consulting auth-platform." Priya owns the coordination action (per your own 2026-05 decision log) and it doesn't appear to have happened.
+- Fraud-risk (Dana Liu) *also* needs biometric signal for risk decisioning and has "no formal alignment" with auth-platform yet. Three teams, one undefined contract.
+
+**2. UDAAP review hasn't started — and servicing is already blocked on it.**
+- COMP-2026-44 status: **Not Started**. Brett Holloway said in #flexpay-xfn: "6–8 wks lead time."
+- SVC-3411 (servicing scripts for Standard) is **Blocked** waiting on UDAAP.
+- 18–24 segment expansion is the most UDAAP-sensitive scope you could pick. If Brett doesn't kick off this week, your Q3 ship date is mechanically impossible — compliance can't compress.
+
+**3. Server-side eligibility migration (PLAN-1893) was reopened and is unstaffed.**
+- Marcus in #flexpay-eng: "reopened — 4 sprints. Need to find capacity." Reporter is Aiko Tanaka (mobile), meaning mobile is presumably blocked on it too.
+- Assignee: null. 4 sprints of work with no owner = it will not be done by Q3.
+
+**4. Downstream costs nobody has approved.**
+- Tomás Reyes flagged to finance: Standard expansion = +14 FTE servicing if AHT projection holds (currently 8.2 min vs. 4.1 target on existing FlexPay). Finance has not approved. This won't block the code ship, but it will block the launch.
+- RISK-1102 (18–24 delinquency model) needs SR 11-7 model risk doc (COMP-2026-58) — another compliance gate on your critical path.
+
+## People to grab today
+
+| Talk to | About |
+|---|---|
+| **Hiroshi Sato (auth-platform)** | AUTH-455 timing, whether you build on legacy lib or wait for the new service, migration contract. Loop in Aiko Tanaka and Dana Liu — this is one conversation, not three. |
+| **Brett Holloway (compliance-eng)** | Kick off COMP-2026-44 UDAAP review *this week*. Also COMP-2026-58 model risk doc for RISK-1102. |
+| **Marcus Webb (your eng lead)** | Staffing PLAN-1893. It's currently nobody's job. |
+| **Tomás Reyes (servicing)** | Get the +14 FTE ask in front of finance now, and re-baseline the AHT assumption. |
+
+## ⚠️ The one thing that slips you to Q4
+
+**If you don't lock the biometric architecture decision with Hiroshi, Aiko, and Dana in a single room this week, you will either (a) ship on a library auth-platform deprecates two weeks after your launch, or (b) discover in September that the centralized service contract doesn't expose what fraud-risk needs and have to rebuild.** UDAAP is the more obvious risk, but it's a known schedule item — biometric is the one that's silently forking across three teams right now.

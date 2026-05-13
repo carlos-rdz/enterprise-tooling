@@ -1,0 +1,32 @@
+======================================================================
+Q: Who else is touching biometric auth right now?
+======================================================================
+
+# Biometric auth — four teams in motion, and they're not aligned
+
+## Who's touching it right now
+
+| Team | Ticket | What | Owner |
+|---|---|---|---|
+| **auth-platform** | AUTH-455 | Re-architecting biometric into a centralized service; **deprecates the legacy shared lib** in Q3 | Hiroshi Sato |
+| **mobile-platform** | MOBILE-3501 | FaceID step-up in FlexPay — **building on the legacy lib Hiroshi is killing** | Aiko Tanaka |
+| **plan-it** | PLAN-1925 | Biometric step-up on plan creation >$1000 | Marcus Webb (PM: Priya Shankar) |
+| **fraud-risk** | FRAUD-1120 | Wants biometric signal piped into risk decisioning; "no formal alignment yet" with auth | Dana Liu |
+| **compliance-eng** | COMP-2026-51 | Privacy review for behavioral biometrics expansion | (linked to fraud) |
+
+## The 3 critical hidden collisions
+
+1. **Mobile is building on a library auth-platform is deprecating this quarter.** Mobile-platform's recent decisions log explicitly says: *"Chose to embed biometric calls inline in FlexPay rather than refactor to a service call. Decision made without consulting auth-platform."* AUTH-455 deprecates that lib Q3. MOBILE-3501 will need a rewrite within weeks of shipping.
+2. **plan-it already knows they need to coordinate with mobile** (Priya's 2026-05 decision) — but neither of them is talking to Hiroshi about the new service contract. So both consumers are integrating against the dying API.
+3. **fraud-risk needs a biometric signal out of auth-platform that doesn't exist yet** and there's no formal scoping. If AUTH-455 ships without exposing that signal, FRAUD-1120 slips a quarter. Compliance (COMP-2026-51) is already doing a privacy review on the assumption fraud will get this data.
+
+## Talk to these people TODAY
+
+- **Hiroshi Sato (auth-platform)** — get the AUTH-455 service contract + deprecation timeline in writing. Everyone else is flying blind.
+- **Aiko Tanaka (mobile-platform)** — she made a unilateral call to use the legacy lib. She needs to know it's gone in Q3 before MOBILE-3501 merges.
+- **Priya Shankar (plan-it)** — already owns "coordinate with mobile on biometric." Loop her into the Hiroshi conversation, not just Aiko's.
+- **Dana Liu (fraud-risk)** — needs to be in the AUTH-455 design review this week, not next quarter.
+
+## ⚠️ The one thing that ships Q4 instead of Q3
+
+**If Hiroshi, Aiko, and Priya are not in a room this week agreeing on the AUTH-455 service interface and a migration path off the legacy lib, you ship three biometric integrations against a deprecated API.** Mobile and plan-it will both have to rewrite in Q3, which means FlexPay Standard expansion (Wendell's Q3 commitment) slips to Q4. The decision was made in mobile-platform's channel without auth-platform — that's the smoking gun. Force the alignment meeting now.

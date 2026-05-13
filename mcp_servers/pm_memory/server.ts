@@ -1,21 +1,31 @@
 /**
- * pm-memory MCP server
+ * pm-memory MCP server (prod-grade)
  *
  * Exposes a corpus of PRDs, tickets, and customer-call summaries as MCP tools
- * so any subagent or Claude Code session can query the enterprise product history without
- * hardcoded knowledge.
+ * so any subagent or Claude Code session can query product history.
  *
- * In production this MCP server would back onto Confluence + Jira + Gong;
- * for the demo it reads from ../../02_pm_memory/corpus/.
+ * Local data: reads from ../../02_pm_memory/corpus/. In production this would
+ * back onto Confluence + Jira + Gong.
+ *
+ * Prod hardening:
+ *   - Structured logging via pino (stderr)
+ *   - Corpus loaded once at startup; LRU cache for search results
+ *   - Pagination on search + list
+ *   - McpError types
+ *   - health_check tool
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { makeLogger } from "../_shared/logger.js";
+import { LRUCache } from "../_shared/cache.js";
 
+const log = makeLogger("pm-memory");
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const CORPUS_ROOT = join(HERE, "..", "..", "02_pm_memory", "corpus");
 
@@ -42,18 +52,38 @@ function loadCorpus(): Map<string, string> {
 }
 
 const corpus = loadCorpus();
+log.info({ doc_count: corpus.size, corpus_root: CORPUS_ROOT }, "corpus loaded");
 
-const server = new McpServer({
-  name: "pm-memory",
-  version: "0.1.0",
+const searchCache = new LRUCache<string, { path: string; snippet: string }[]>({
+  capacity: 64,
+  ttlMs: 5 * 60 * 1000,
 });
+
+const server = new McpServer({ name: "pm-memory", version: "0.2.0" });
+
+server.tool(
+  "health_check",
+  "Verify the pm-memory MCP server is healthy. Returns corpus size and root path. Safe to poll.",
+  {},
+  async () => ({
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify({ status: "ok", doc_count: corpus.size, corpus_root: CORPUS_ROOT }, null, 2),
+      },
+    ],
+  }),
+);
 
 server.tool(
   "list_documents",
-  "List every document in the enterprise product-memory corpus. Returns a JSON array of {path, kind, summary} entries. Use this first to see what's available before fetching specific documents.",
-  {},
-  async () => {
-    const docs = [...corpus.entries()].map(([path, body]) => {
+  "List every document in the product-memory corpus. Returns {path, kind, summary}. Supports pagination.",
+  {
+    cursor: z.number().int().nonnegative().default(0).describe("Pagination cursor (0 for first page)."),
+    limit: z.number().int().positive().max(100).default(50),
+  },
+  async ({ cursor, limit }) => {
+    const all = [...corpus.entries()].map(([path, body]) => {
       const kind = path.startsWith("prds/")
         ? "prd"
         : path.startsWith("tickets/")
@@ -64,29 +94,40 @@ server.tool(
       const firstLine = body.split("\n").find((l) => l.startsWith("# ")) ?? path;
       return { path, kind, summary: firstLine.replace(/^#\s+/, "") };
     });
-    return { content: [{ type: "text", text: JSON.stringify(docs, null, 2) }] };
+    const slice = all.slice(cursor, cursor + limit);
+    const next = cursor + slice.length;
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              total: all.length,
+              cursor,
+              returned: slice.length,
+              next_cursor: next < all.length ? next : null,
+              documents: slice,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
   },
 );
 
 server.tool(
   "get_document",
-  "Fetch the full text of one document from the corpus. Path is the relative path returned by list_documents (e.g. 'prds/2024_plan_it_launch.md').",
-  { path: z.string().describe("Relative path of the document to fetch") },
+  "Fetch the full text of one document. Path is relative (e.g. 'prds/2024_plan_it_launch.md').",
+  { path: z.string().min(1).describe("Relative path returned by list_documents") },
   async ({ path }) => {
     const body = corpus.get(path);
     if (!body) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: `unknown document '${path}'`,
-              available: [...corpus.keys()],
-            }),
-          },
-        ],
-        isError: true,
-      };
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `unknown document '${path}'. Use list_documents to see available paths.`,
+      );
     }
     return { content: [{ type: "text", text: body }] };
   },
@@ -94,36 +135,35 @@ server.tool(
 
 server.tool(
   "search_corpus",
-  "Case-insensitive keyword search across every document. Returns a JSON array of {path, snippet} hits, with ±2 lines of surrounding context per match. Use this to find relevant history without reading every doc.",
+  "Case-insensitive keyword search across every document. Returns hits with ±2 lines of surrounding context per match. Results cached 5 min.",
   {
-    query: z.string().describe("Keyword or short phrase to search for"),
+    query: z.string().min(1),
     max_hits: z.number().int().positive().max(50).default(10),
   },
   async ({ query, max_hits }) => {
-    const needle = query.toLowerCase();
-    const hits: { path: string; snippet: string }[] = [];
-    for (const [path, body] of corpus) {
-      const lines = body.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].toLowerCase().includes(needle)) {
-          const lo = Math.max(0, i - 2);
-          const hi = Math.min(lines.length, i + 3);
-          hits.push({ path, snippet: lines.slice(lo, hi).join("\n") });
-          if (hits.length >= max_hits) break;
+    const key = `${query.toLowerCase()}|${max_hits}`;
+    const hits = await searchCache.memo(key, async () => {
+      const needle = query.toLowerCase();
+      const out: { path: string; snippet: string }[] = [];
+      for (const [path, body] of corpus) {
+        const lines = body.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].toLowerCase().includes(needle)) {
+            const lo = Math.max(0, i - 2);
+            const hi = Math.min(lines.length, i + 3);
+            out.push({ path, snippet: lines.slice(lo, hi).join("\n") });
+            if (out.length >= max_hits) break;
+          }
         }
+        if (out.length >= max_hits) break;
       }
-      if (hits.length >= max_hits) break;
-    }
+      return out;
+    });
     return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({ query, hit_count: hits.length, hits }, null, 2),
-        },
-      ],
+      content: [{ type: "text", text: JSON.stringify({ query, hit_count: hits.length, hits }, null, 2) }],
     };
   },
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+log.info("pm-memory MCP server starting");
+await server.connect(new StdioServerTransport());

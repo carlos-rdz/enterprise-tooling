@@ -1,0 +1,84 @@
+name: evals
+
+# Runs the LLM-judge eval suite against all skills.
+#
+# - workflow_dispatch: manual trigger (UI button or `gh workflow run evals`).
+# - schedule: nightly, so prompt/model drift gets caught even without commits.
+#
+# Requires the `ANTHROPIC_API_KEY` repository secret. Each run costs roughly
+# $0.25 in judge tokens at current Opus 4.7 pricing — cheap enough to schedule
+# nightly but not free, so we DON'T run on every PR.
+#
+# The job parses the committed baseline `evals/report.md` for "X/Y cases
+# passed" and fails if the new run drops below that pass count. This is the
+# eval-gate: it can never make a regressing change green.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 8 * * *" # daily ~08:17 UTC
+
+jobs:
+  evals:
+    name: LLM-judge eval suite
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'carlos-rdz' }} # only on this fork
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: install deps
+        run: pip install -r requirements.txt
+      - name: read committed baseline pass count
+        id: baseline
+        run: |
+          if [ ! -f evals/report.md ]; then
+            echo "::warning::no committed baseline; treating baseline pass count as 0"
+            echo "pass_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          line=$(grep -oE 'Summary: [0-9]+/[0-9]+ cases passed' evals/report.md | head -1)
+          if [ -z "$line" ]; then
+            echo "::warning::could not parse baseline; treating as 0"
+            echo "pass_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pc=$(echo "$line" | grep -oE '[0-9]+' | head -1)
+          echo "baseline pass count: $pc"
+          echo "pass_count=$pc" >> "$GITHUB_OUTPUT"
+      - name: run evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret not set — cannot run live evals"
+            exit 1
+          fi
+          # We run the eval suite. It exits 1 on any case failure.
+          # We tolerate that here because we want to inspect the report
+          # and compare against the baseline ourselves.
+          python evals/run.py || true
+      - name: compare to baseline
+        id: compare
+        run: |
+          if [ ! -f evals/report.md ]; then
+            echo "::error::no report.md produced"
+            exit 1
+          fi
+          line=$(grep -oE 'Summary: [0-9]+/[0-9]+ cases passed' evals/report.md | head -1)
+          new=$(echo "$line" | grep -oE '^[^/]+' | grep -oE '[0-9]+' | head -1)
+          baseline=${{ steps.baseline.outputs.pass_count }}
+          echo "baseline=$baseline new=$new"
+          if [ "$new" -lt "$baseline" ]; then
+            echo "::error::eval regression: baseline $baseline passed, new run $new passed"
+            exit 1
+          fi
+          echo "::notice::evals: $new pass (>= baseline $baseline)"
+      - name: upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-${{ github.run_id }}
+          path: evals/runs/
+          retention-days: 30

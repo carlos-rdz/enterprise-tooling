@@ -1,0 +1,41 @@
+======================================================================
+Q: I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across other teams?
+======================================================================
+
+# FlexPay Q3 Standard Expansion — Cross-Team Risk Report
+
+Here's what's hiding in other teams' backlogs that will eat your Q3.
+
+## 🔴 The 3 critical hidden dependencies
+
+### 1. Biometric library is being killed under you — mid-quarter
+- **Mobile (MOBILE-3501)** is shipping FaceID step-up for FlexPay against the **legacy biometric shared library**, in progress now.
+- **Plan-it (PLAN-1925)** is *also* adding biometric step-up (>$1000) — same library.
+- **Auth-platform (AUTH-455)** is re-architecting biometrics into a centralized service and **explicitly deprecating that legacy library in Q3** (Hiroshi posted this in #auth-platform).
+- Mobile-platform's own decision log (2026-04) says they "embedded biometric calls inline in FlexPay mobile flow…**decision made without consulting auth-platform**." Priya is nominally the coordinator (per plan-it's decision log) but there's no evidence the conversation has happened.
+- **Net:** two FlexPay surfaces are being built on a library that won't exist by ship date.
+
+### 2. UDAAP review for Standard expansion has not started — 6-8 week lead time
+- **COMP-2026-44** is `Not Started`. Brett posted in #flexpay-xfn: *"Reminder UDAAP review for Standard expansion has NOT been kicked off. 6-8 wks lead time."*
+- This already has a downstream casualty: **SVC-3411 (servicing scripts) is `Blocked` on UDAAP.**
+- Servicing handle time is already **8.2 min vs 4.1 target** (SVC-3401) — launching without scripts means call center implodes.
+
+### 3. Server-side eligibility migration is reopened with no owner
+- **PLAN-1893** (server-side eligibility) is `Open`, **reopened, 4 sprints of work, no assignee, no capacity** (Marcus Webb in #flexpay-eng).
+- Reporter is Aiko Tanaka (mobile) — meaning mobile is pushing for it because client-side eligibility blocks them. If this slips, Standard expansion ships with the same brittle client-side eligibility you presumably wanted to retire.
+
+## Secondary watch-list
+- **RISK-1102** (18-24 delinquency model) is in progress but needs **COMP-2026-58 SR 11-7 sign-off** before it can be deployed. Standard expansion to 18-24 segment depends on both.
+- **Servicing capacity:** Tomás flagged +14 FTE needed for Standard volume; **finance has not approved**. Headcount lead times will bite you separately from UDAAP.
+- **Auth-platform is already overloaded** with AUTH-441 (session token vault migration) + AUTH-450 (WebAuthn) + AUTH-455 (biometric rewrite). Don't assume you'll get fast turnaround from Hiroshi.
+
+## People to talk to TODAY (in this order)
+
+1. **Brett Holloway (compliance-engineering)** — kick off COMP-2026-44 *this week*. This is the longest pole and you don't control the clock.
+2. **Hiroshi Sato (auth-platform)** — get alignment on AUTH-455 timeline vs MOBILE-3501 / PLAN-1925. Either auth slips the legacy lib deprecation, or your two biometric flows migrate to the new service before Q3 ship. Pick one. Today.
+3. **Aiko Tanaka (mobile-platform) + Marcus Webb (your eng lead)** — reconcile MOBILE-3501's inline biometric implementation with PLAN-1925, and decide who owns PLAN-1893 capacity. Aiko opened PLAN-1893 against your team; if you don't staff it, mobile will keep escalating.
+4. **Tomás Reyes (servicing)** — get the +14 FTE ask in front of finance now; it's a parallel long pole to UDAAP.
+
+## ⚠️ The single biggest "align on this or ship Q4 not Q3" warning
+
+**Start the UDAAP review (COMP-2026-44) this week.** 6-8 weeks of regulatory lead time + a downstream blocked servicing workstream + Brett already publicly flagging it = this is the deterministic Q3 killer. Biometrics you can engineer around in a weekend war room; UDAAP you cannot.

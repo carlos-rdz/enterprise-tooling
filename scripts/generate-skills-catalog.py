@@ -66,7 +66,7 @@ def find_slash_for_skill(skill_name: str) -> tuple[str, Path] | tuple[None, None
     if candidate.exists():
         return f"/{skill_name}", candidate
     # Truncated form (e.g. oncall-companion -> /oncall)
-    for path in COMMANDS_DIR.glob("*.md"):
+    for path in sorted(COMMANDS_DIR.glob("*.md")):
         body = path.read_text()
         if skill_name in body or path.stem in skill_name:
             return f"/{path.stem}", path
@@ -88,7 +88,7 @@ def find_subagent_for_skill(skill_name: str, slash_command_path: Path | None) ->
             candidate = AGENTS_DIR / f"{m.group(1)}.md"
             if candidate.exists():
                 return m.group(1)
-    for path in AGENTS_DIR.glob("*.md"):
+    for path in sorted(AGENTS_DIR.glob("*.md")):
         if skill_name in path.stem:
             return path.stem
     return None

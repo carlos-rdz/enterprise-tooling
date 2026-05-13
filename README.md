@@ -1,8 +1,10 @@
-# Senior Staff Demo — Coordination AI Plugin
+# enterprise-coordination
 
-Three working agent workflows packaged as a Claude Code plugin. Built to demonstrate the upstream coordination layer is where AI leverage at the enterprise lives — not code completion.
+A Claude Code plugin that explores what AI tooling for engineering teams looks like when you stop building coding assistants and start building for the *upstream* dysfunctions — too many meetings, product teams without product memory, and cross-team silos that turn every initiative into a re-negotiation.
 
-**Start here:** [`architecture.md`](architecture.md) — the tool-surface map.
+Three workflows, each implemented **twice**: once as a Claude Code plugin (skill + slash command + subagent + MCP server + hook), and once as a raw Python script using the Anthropic SDK directly. Same model, same prompts, very different leverage.
+
+**Start here:** [`architecture.md`](architecture.md) — the tool-surface map and composition diagram.
 
 ---
 
@@ -10,11 +12,12 @@ Three working agent workflows packaged as a Claude Code plugin. Built to demonst
 
 ```
 .
-├── architecture.md             # tool-surface map — read first
+├── architecture.md             # tool-surface map + composition diagram
+├── SYNTHETIC_DATA_NOTICE.md    # confirms every name/product/ticket is fabricated
 │
-├── .claude-plugin/plugin.json  # plugin manifest — one installable bundle
+├── .claude-plugin/plugin.json  # plugin manifest — bundles everything below
 ├── .claude/
-│   ├── settings.json           # PostToolUse hook (transcript detection)
+│   ├── settings.json           # PostToolUse hook: detects transcript writes
 │   ├── skills/                 # 3 skills: meeting-killer, pm-memory, cross-team
 │   ├── agents/                 # 2 subagents: pm-historian, cross-team-integrator
 │   └── commands/               # 3 slash commands
@@ -25,24 +28,36 @@ Three working agent workflows packaged as a Claude Code plugin. Built to demonst
 │
 ├── 01_meeting_killer/          # raw form: Python + Anthropic SDK
 │   ├── agent.py
-│   └── transcript.md
+│   ├── transcript.md           # synthetic meeting transcript
+│   └── captured_output.md      # what the agent produced from it
 ├── 02_pm_memory/
 │   ├── agent.py
-│   └── corpus/                 # PRDs, tickets, customer calls (synthetic)
+│   ├── corpus/                 # synthetic PRDs, tickets, customer-call summaries
+│   └── captured_output.md
 └── 03_cross_team/
     ├── agent.py
-    └── team_data/teams.md
+    ├── team_data/teams.md      # synthetic team activity snapshots
+    └── captured_output.md
 ```
+
+## The three workflows
+
+| | What it does | Surfaces |
+|---|---|---|
+| **Meeting killer** | Ingests a meeting transcript and produces a structured action graph, per-attendee followup drafts, an attendance audit ("who didn't need to be there"), and a blunt sync-vs-async verdict. | Skill + slash command + hook |
+| **PM domain memory** | Answers product-history questions by querying a corpus of PRDs, tickets, and customer calls through an MCP server. Cites sources. Warns when the asker is about to repeat a known mistake. | Skill + slash command + subagent + MCP server |
+| **Cross-team integrator** | Discovers hidden cross-team dependencies and overlaps by querying a team-activity registry through an MCP server. Surfaces collisions humans can't see from their seat. | Skill + slash command + subagent + MCP server |
 
 ## Setup
 
 ```bash
-cd /Users/crodriguez/interview
+git clone https://github.com/carlos-rdz/enterprise-tooling
+cd enterprise-tooling
 
 # JS side (MCP servers)
 npm install
 
-# Python side (raw-form demos)
+# Python side (raw-form scripts)
 python3 -m venv .venv && source .venv/bin/activate
 pip install anthropic pydantic
 
@@ -59,7 +74,7 @@ Inside a Claude Code session in this directory:
 /cross-team I'm leading the FlexPay Q3 Standard expansion. What should I be worried about across teams?
 ```
 
-The slash commands invoke skills, which delegate to subagents, which call MCP servers. The hook fires automatically when a transcript-like `.md` file gets written, suggesting `/meeting-killer`.
+The slash commands invoke skills, which delegate to subagents, which call MCP servers. The hook fires automatically when a transcript-like `.md` file is written, suggesting `/meeting-killer`.
 
 ## Run the raw form (Python + Anthropic SDK)
 
@@ -69,17 +84,14 @@ python 02_pm_memory/agent.py "why was FlexPay Standard killed last year"
 python 03_cross_team/agent.py "who else is touching biometric auth right now"
 ```
 
-Same workflows, same model (`claude-opus-4-7` with adaptive thinking), no Claude Code stack.
+Same workflows, same model (`claude-opus-4-7` with adaptive thinking), no Claude Code stack. The `captured_output.md` files in each directory show what these produce on the synthetic inputs.
 
-## Demo flow for the interview (~3 min)
+## Why this exists
 
-1. Open [`architecture.md`](architecture.md) — tool surface map. (15 sec)
-2. Show `.claude/skills/meeting-killer/SKILL.md` + run `/meeting-killer` in Claude Code. (45 sec)
-3. Show the side-by-side: SKILL.md vs `01_meeting_killer/agent.py`. (15 sec)
-4. Run `/cross-team` — watch the subagent call MCP tools, find the biometric overlap. (60 sec)
-5. Show `.claude-plugin/plugin.json` — *"one install, every engineer at the enterprise has this."* (15 sec)
-6. Close: *"None of this is a coding assistant. These are the upstream dysfunctions code completion will never touch."* (10 sec)
+Most "AI for engineering" investment goes into the IDE — code completion, inline suggestions, faster typing. That's the easy part and table stakes within 12 months. The harder, more leveraged work lives upstream of code:
 
-## The thesis
+- A typical engineering week has more hours of meetings than hours of focused code.
+- Product teams onboard onto products they don't yet understand and have no fast way to learn the history.
+- Cross-team coordination overhead compounds with org size — and AI is uniquely well-suited to dissolve it.
 
-> "We already gave devs Cursor, Claude, Copilot. That's table stakes and the easy part. The actual leverage is killing meetings, giving PMs domain memory, and dissolving the team boundaries that make every cross-team project a re-negotiation. That's the year-1 thesis. Coding completion is a feature; this is a platform."
+This repo is an exploration of what that looks like when you compose the full Claude Code + Claude API stack against those problems instead of against the IDE.

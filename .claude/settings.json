@@ -1,5 +1,5 @@
 {
-  "$comment": "Project-level Claude Code settings. The hook below demonstrates auto-triggering a skill when a meeting transcript lands on disk — exactly the kind of ambient workflow we want every the enterprise engineer to have without thinking about it.",
+  "$comment": "Project-level Claude Code settings. The hook below demonstrates auto-triggering a skill when a meeting transcript lands on disk — exactly the kind of ambient workflow we want every engineer to have without thinking about it.",
   "hooks": {
     "PostToolUse": [
       {

@@ -50,7 +50,7 @@ const server = new McpServer({
 
 server.tool(
   "list_documents",
-  "List every document in the the enterprise product-memory corpus. Returns a JSON array of {path, kind, summary} entries. Use this first to see what's available before fetching specific documents.",
+  "List every document in the enterprise product-memory corpus. Returns a JSON array of {path, kind, summary} entries. Use this first to see what's available before fetching specific documents.",
   {},
   async () => {
     const docs = [...corpus.entries()].map(([path, body]) => {

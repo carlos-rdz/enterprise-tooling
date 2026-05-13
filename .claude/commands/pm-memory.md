@@ -1,5 +1,5 @@
 ---
-description: Ask the the enterprise product-memory corpus a question — get a cited answer about prior decisions, customer feedback, and risks
+description: Ask the enterprise product-memory corpus a question — get a cited answer about prior decisions, customer feedback, and risks
 argument-hint: <natural-language question>
 ---
 
